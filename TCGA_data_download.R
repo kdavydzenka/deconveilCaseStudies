@@ -8,7 +8,7 @@ sapply(pkgs, require, character.only = TRUE)
 
 # Get a list of projects #
 gdcprojects = getGDCprojects()
-getProjectSummary('TCGA-PRAD')
+getProjectSummary('TCGA-HNSC')
 
 # build a query to retrieve data #
 
@@ -16,10 +16,7 @@ query_TCGA_cnv <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
                                          data.category = "Copy Number Variation",
                                          sample.type = c("Primary Tumor"),
                                          data.type = "Gene Level Copy Number")
-                                         #data.type = "Copy Number Segment")
-                                         #workflow.type = 'ASCAT3'
-                                         #workflow.type = "DNAcopy")
-    
+                                         
 
 query_TCGA_rna_tumor <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
                        data.category = 'Transcriptome Profiling',
@@ -42,6 +39,21 @@ query_TCGA_rna_normal <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
 GDCdownload(query_TCGA_cnv)
 GDCdownload(query_TCGA_rna_tumor)
 GDCdownload(query_TCGA_rna_normal)
+
+
+## Clinical data ##
+colnames(rna_tum) <- substr(colnames(rna_tum), 1, 12)
+patient_barcodes <- c(colnames(rna_tum))
+
+clinical_query <- TCGAbiolinks::GDCquery(project = "TCGA-HNSC", 
+                                         data.category = "Clinical",
+                                         data.format = "bcr xml", 
+                                         barcode = patient_barcodes)
+GDCdownload(clinical_query)
+
+clinical_data <- TCGAbiolinks::GDCprepare_clinic(clinical_query, clinical.info = "patient")
+
+saveRDS(clinical_data, file = "BRCA/clinical_full.RDS")
 
 
 # Prepare data #
@@ -89,20 +101,7 @@ colnames(rna_tum) <- substr(colnames(rna_tum), 1, 12)
 colnames(cnv_tum) <- substr(colnames(cnv_tum), 1, 12)
 
 
-## Clinical data ##
-colnames(rna_tum) <- substr(colnames(rna_tum), 1, 12)
-patient_barcodes <- c(colnames(rna_tum))
-
-clinical_query <- TCGAbiolinks::GDCquery(project = "TCGA-LUSC", data.category = "Clinical",
-                                          data.format = "bcr xml", barcode = patient_barcodes)
-GDCdownload(clinical_query)
-
-clinical_data <- TCGAbiolinks::GDCprepare_clinic(clinical_query, clinical.info = "patient")
-
-saveRDS(clinical_data, file = "brca/clinical_full.RDS")
-
-
-# Data preprocessing #
+## Data preprocessing ##
 rna_tum <- rna_tum[,(colnames(rna_tum) %in% colnames(cnv_tum))] 
 rna_norm <- rna_norm[,(colnames(rna_norm) %in% colnames(rna_tum))]
 cnv_tum <- cnv_tum[,(colnames(cnv_tum) %in% colnames(rna_norm))]

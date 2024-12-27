@@ -4,71 +4,88 @@ pkgs <- c("cluster", "factoextra", "heatmaply", "DESeq2", "tidyverse", "colorspa
 sapply(pkgs, require, character.only = TRUE)
 
 
-### Data preprocessing ###
+### Data preprocessing Pan-cancer ###
 
 # Input data
-#cnv_tumor <- readRDS("TCGA/lung/LUAD/data/cnv_tumor.RDS")
-#rna_normal <- readRDS("TCGA/lung/LUAD/data/rna_normal.RDS")
-#rna_tumor <- readRDS("TCGA/lung/LUAD/data/rna_tumor.RDS")
 
-cnv_tumor <- readRDS("TCGA/brca/cnv_tumor.RDS")
-rna_normal <- readRDS("TCGA/brca/rna_normal.RDS")
-rna_tumor <- readRDS("TCGA/brca/rna_tumor.RDS")
+tumor_type <- c("LUAD", "LUSC", "BRCA", "LIHC")
+base_dir <- "TCGA"
+
+cnv_mean_all <- data.frame()
+
+process_tumor_data <- function(tumor_type) {
+
+  cnv_tumor_path <- file.path(base_dir, tumor_type, "cnv_tumor.RDS")
+  rna_normal_path <- file.path(base_dir, tumor_type, "rna_normal.RDS")
+  rna_tumor_path <- file.path(base_dir, tumor_type, "rna_tumor.RDS")
+  
+  cnv_tumor <- readRDS(cnv_tumor_path)
+  rna_normal <- readRDS(rna_normal_path)
+  rna_tumor <- readRDS(rna_tumor_path)
+  
+  # Gene filtering
+  low_expression_threshold <- 10
+  expression_summary <- data.frame(
+    Gene = rownames(rna_normal),
+    MeanExpression = rowMeans(rna_normal)
+  )
+  filtered_genes <- expression_summary %>%
+    filter(MeanExpression > low_expression_threshold)
+  
+  rna_normal <- rna_normal[filtered_genes$Gene, ]
+  rna_tumor <- rna_tumor[filtered_genes$Gene, ]
+  rna <- cbind(rna_normal, rna_tumor)
+  cnv_tumor <- cnv_tumor[filtered_genes$Gene, ]
+  
+  # Process CNV tumor data
+  cnv_tumor <- apply(cnv_tumor, 2, function(x) ifelse(x > 15, 15, x))
+  cnv_mean <- as.data.frame(cnv_tumor) %>%
+    dplyr::mutate(cnv_mean = rowMeans(cnv_tumor)) %>%
+    dplyr::mutate(tumor_type = tumor_type) %>%
+    dplyr::select(cnv_mean, tumor_type)
+  
+  cnv_normal <- matrix(2, nrow = nrow(rna), ncol = ncol(rna_normal))
+  rownames(cnv_normal) <- rownames(rna)
+  cnv_normal <- as.data.frame(cnv_normal)
+  cnv_tumor <- as.data.frame(cnv_tumor)
+  
+  cnv <- merge(cnv_normal, cnv_tumor, by = "row.names")
+  cnv <- cnv %>% remove_rownames() %>% column_to_rownames("Row.names")
+  colnames(cnv) <- colnames(rna)
+  cnv <- cnv / 2
+  
+  colnames(rna) <- paste0("sample", 1:(ncol(rna)))
+  colnames(cnv) <- colnames(rna)
+  rownames_idx <- match(rownames(cnv), rownames(rna))
+  rna <- rna[rownames_idx, ] %>% na.omit()
+  
+  metadata <- data.frame(
+    patID = colnames(rna),
+    condition = rep(c("A", "B"), each = ncol(rna_tumor))
+  )
+  metadata <- metadata %>% remove_rownames() %>% column_to_rownames(var = "patID")
+  metadata$condition <- as.factor(metadata$condition)
+  
+  # Save processed data
+  output_dir <- file.path(base_dir, tumor_type, "test")
+  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+  write.csv(cnv, file = file.path(output_dir, "cnv.csv"), row.names = TRUE)
+  write.csv(rna, file = file.path(output_dir, "rna.csv"), row.names = TRUE)
+  write.csv(metadata, file = file.path(output_dir, "metadata.csv"), row.names = TRUE)
+  
+  return(cnv_mean)
+}
+
+for (tumor_type in tumor_types) {
+  cnv_mean_all <- rbind(cnv_mean_all, process_tumor_data(tumor_type))
+}
 
 
-# Gene filtering #
-
-# Exclude genes with low expression in normal tissue 
-low_expression_threshold <- 20
-expression_summary <- data.frame(
-  Gene = rownames(rna_normal),
-  MeanExpression = rowMeans(rna_normal)
-)
-
-filtered_genes <- expression_summary %>%
-  filter(MeanExpression > low_expression_threshold)
-
-rna_normal <- rna_normal[filtered_genes$Gene, ]
-rna_tumor <- rna_tumor[filtered_genes$Gene, ]
-rna <- cbind(rna_normal, rna_tumor)
-
-cnv_tumor <- cnv_tumor[filtered_genes$Gene, ]
-
-
-# Gene expression variability check
-
-#gene_iqr <- apply(rna, 1, IQR)
-
-#variability_summary <- data.frame(
-  #Gene = rownames(rna),
-  #IQR = gene_iqr
-#)
-#iqr_threshold <- quantile(variability_summary$IQR, 0.25)
-
-#filtered_genes_iqr <- variability_summary %>%
-  #filter(IQR > iqr_threshold)
-
-#rna_filt <- rna[filtered_genes_iqr$Gene, ]
-#cnv_tumor <- cnv_tumor[filtered_genes_iqr$Gene, ]
-
-
-# Plot CN data
-
-cnv_tumor <- apply(cnv_tumor, 2, function(x) ifelse(x > 15, 15, x))
-
-cnv_mean_coad <- cnv_tumor %>% 
-  as.data.frame() %>% 
-  dplyr::mutate(cnv_mean = rowMeans(cnv_tumor)) %>% 
-  dplyr::mutate(tumor_type = "COAD") %>% 
-  dplyr::select(cnv_mean, tumor_type) 
-
-cnv_mean <- rbind(cnv_mean_brca, cnv_mean_lihc, cnv_mean_hnsc, cnv_mean_coad)
-
-hist <- ggplot(cnv_mean, aes(x = cnv_mean)) +
-  geom_histogram(binwidth = 0.4, fill = "#F39B7FB2", color = "black") +
+hist <- ggplot(cnv_mean_all, aes(x = cnv_mean, fill = tumor_type)) +
+  geom_histogram(binwidth = 0.4, color = "black", alpha = 0.7, position = "identity") +
   labs(
-    title = "",
-    x = "CN state",
+    title = "CNV Distribution Across Tumor Types",
+    x = "CN State",
     y = "Frequency"
   ) +
   theme_classic() +
@@ -78,52 +95,29 @@ hist <- ggplot(cnv_mean, aes(x = cnv_mean)) +
     axis.title.x = element_text(size = 18, face = "plain", color = "black"),
     axis.title.y = element_text(size = 18, face = "plain", color = "black"),
     strip.text = element_text(size = 18, face = "plain", color = "black")
-  ) 
-  #facet_wrap(~factor(tumor_type, levels = c("BRCA", "LIHC", "HNSC", "COAD")), nrow = 1)
-hist
-
-ggsave("CN-aware-DGE/plots/main/hist_luad.png", dpi = 400, width = 4.0, height = 3.5, plot = hist)
+  ) +
+  facet_wrap(~factor(tumor_type, levels = tumor_types), nrow = 1)
 
 
-cnv_normal <- matrix(2, nrow(rna), ncol(rna_normal))
-rownames(cnv_normal) <- rownames(rna)
-
-cnv_tumor <- as.data.frame(cnv_tumor)
-cnv_normal <- as.data.frame(cnv_normal)
-
-#cnv <- cbind(cnv_normal, cnv_tumor)
-cnv <- merge(cnv_normal, cnv_tumor, by = "row.names")
-cnv <- cnv %>% remove_rownames() %>% column_to_rownames("Row.names")
-colnames(cnv) <- colnames(rna)
-cnv <- cnv/2
-colnames(rna) <- paste0("sample", 1:(ncol(rna)))
-colnames(cnv) <- colnames(rna)
-
-rownames_idx <- match(rownames(cnv), rownames(rna))
-rna <- rna[rownames_idx,] %>% na.omit()
+ggsave("CN-aware-DGE/plots/main/hist.png", dpi = 400, width = 4.0, height = 3.5, plot = hist)
 
 
-#Generate metadata#
-metadata <- data.frame(patID = colnames(rna),
-                       condition = rep(c("A", "B"), each = ncol(rna_tumor)))
-metadata <- metadata %>% remove_rownames %>% column_to_rownames(var = "patID") 
-metadata$condition <- as.factor(metadata$condition)
-
-
-write.csv(cnv, file = "TCGA/colon/test/cnv_test_all_genes.csv", row.names = T)
-write.csv(rna, file = "TCGA/colon/test/rna_test_all_genes.csv", row.names = T)
-write.csv(metadata, file = "TCGA/colon/test/metadata_all_genes.csv", row.names = T)
 
 
 ### Downstream analysis ###
 
-res_pydeseq <- read.csv("CN-aware-DGE/results/COAD/res_CNnaive_all_genes.csv")
-res_deconveil <- read.csv("CN-aware-DGE/results/COAD/res_CNaware_all_genes.csv")
-cnv <- read.csv("TCGA/colon/test/cnv_test_all_genes.csv") %>% remove_rownames %>% column_to_rownames(var="X")
+# Read data files for a tumor type
+read_data <- function(tumor_type) {
+  list(
+    res_pydeseq = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/res_CNnaive.csv")),
+    res_deconveil = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/res_CNaware.csv")),
+    cnv_tumor = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/cnv_tumor.csv")) %>%
+      remove_rownames() %>%
+      column_to_rownames(var = "X") * 2
+  )
+}
 
-cnv_tumor <- cnv[,13:24]
-cnv_tumor <- cnv_tumor * 2
-
+# Classify CN values into categories
 classify_cn <- function(cn_value) {
   if (cn_value == 0 || cn_value == 1) {
     return("Loss")
@@ -138,175 +132,184 @@ classify_cn <- function(cn_value) {
   }
 }
 
-cn_categories <- apply(cnv_tumor, c(1, 2), classify_cn)
-loss_proportion <- apply(cn_categories, 1, function(x) mean(x == "Loss"))
-loss_proportion <- as.data.frame(loss_proportion)
-
-loss_threshold <- 0.25
-loss_labels <- loss_proportion %>% 
-  dplyr::mutate(isCNloss = case_when(
-    loss_proportion > loss_threshold ~ "loss",
-    loss_proportion < loss_threshold ~ "not loss"))
-
-#neutral_proportion <- apply(cn_categories, 1, function(x) mean(x == "Neutral"))
-#neutral_proportion <- as.data.frame(neutral_proportion)
-
-#gain_proportion <- apply(cn_categories, 1, function(x) mean(x == "Gain"))
-#gain_proportion <- as.data.frame(gain_proportion)
-
-#amplification_proportion <- apply(cn_categories, 1, function(x) mean(x == "Amplification"))
-#amplification_proportion <- as.data.frame(amplification_proportion)
-
-#cn_proportion <- cbind(loss_proportion, neutral_proportion, gain_proportion, amplification_proportion)
-
-# CN mean
-cnv_mean <- cnv_tumor %>% 
-  as.data.frame() %>% 
-  dplyr::mutate(cnv_mean = rowMeans(cnv_tumor)) %>% 
-  dplyr::mutate(geneID = rownames(cnv_tumor)) %>% 
-  dplyr::select(geneID, cnv_mean) 
-
-cnv_mean <- cnv_mean %>% 
-  dplyr::mutate(cnv_group = case_when(
-    cnv_mean > 0 & cnv_mean <= 1.7  ~ "loss",
-    cnv_mean > 1.7 & cnv_mean <= 2.5  ~ "neutral",
-    cnv_mean > 2.5 & cnv_mean <=   4.0 ~ "gain",
-    cnv_mean > 4.0 ~ "amplification"))
-
-cnv_mean <- cbind(cnv_mean, loss_labels)
-cnv_mean$cnv_group <- ifelse(cnv_mean$isCNloss == "loss", "loss", cnv_mean$cnv_group)
+# Generate CN categories and loss proportions
+process_cnv_data <- function(cnv_tumor, loss_threshold = 0.25) {
+  cn_categories <- apply(cnv_tumor, c(1, 2), classify_cn)
+  loss_proportion <- apply(cn_categories, 1, function(x) mean(x == "Loss"))
+  loss_labels <- data.frame(
+    loss_proportion = loss_proportion,
+    isCNloss = ifelse(loss_proportion > loss_threshold, "loss", "not loss")
+  )
+  return(list(cn_categories = cn_categories, loss_labels = loss_labels))
+}
 
 
-lfc_cut <- 1.0
-pval_cut <- .05
+# Annotate results with DE information
+annotate_results <- function(results, lfc_cut, pval_cut, method, tumor_type) {
+  results %>%
+    mutate(
+      isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut),
+      DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg")),
+      method = method,
+      tumor_type = tumor_type
+    ) %>%
+    remove_rownames() %>%
+    column_to_rownames(var = "X")
+}
 
-res_deconveil <- res_deconveil %>%
-  dplyr::mutate(isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut)) %>%
-  dplyr::mutate(DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg"))) %>%
-  dplyr::mutate(tumor_type = "COAD") %>% 
-  dplyr::mutate(method = "CN aware") %>%
-  dplyr::select(X,log2FoldChange, padj, isDE, DEtype, tumor_type, method) %>% 
-  remove_rownames %>% 
-  column_to_rownames(var="X")
-
-res_pydeseq <- res_pydeseq %>%
-  dplyr::mutate(isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut)) %>%
-  dplyr::mutate(DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg"))) %>%
-  dplyr::mutate(method = "CN naive") %>% 
-  dplyr::mutate(tumor_type = "COAD") %>% 
-  dplyr::select(X,log2FoldChange, padj, isDE, DEtype, tumor_type, method) %>% 
-  remove_rownames %>% 
-  column_to_rownames(var="X")
-
-colnames(res_pydeseq) <- c("logFC", "padj", "isDE", "DEtype", "tumor_type", "method")
-colnames(res_deconveil) <- colnames(res_pydeseq) 
-
-
-# Gene groups separation: Dosage-sensitive | Dosage-insensitive | Dosage-compensated
-
-res_deconveil <- cbind(res_deconveil, cnv_mean)
-res_pydeseq <- cbind(res_pydeseq, cnv_mean)
-
-res_aware <- res_deconveil %>% dplyr::select(logFC, padj, isDE, DEtype, tumor_type, method, cnv_mean) 
-res_naive <- res_pydeseq %>% dplyr::select(logFC, padj, isDE, DEtype, tumor_type, method, cnv_mean)
-
-colnames(res_naive) <- c("logFC_naive", "padj_naive", "isDE_naive", "DEtype_naive", "tumor_type_naive", "method_naive", "cnv_mean_naive")
-colnames(res_aware) <- c("logFC_aware", "padj_aware", "isDE_aware", "DEtype_aware", "tumor_type_aware", "method_aware", "cnv_mean_aware")
-
-res_joint <- cbind(res_naive, res_aware)
-
-d_sensitive <- res_joint %>%
-  dplyr::filter(DEtype_naive == "Up-reg" & DEtype_aware == "n.s." | 
-                  DEtype_naive == "Down-reg" & DEtype_aware == "n.s") 
-
-d_insensitive <- res_joint %>% 
-  dplyr::filter(DEtype_naive == "Down-reg" & DEtype_aware == "Down-reg" |
-                  DEtype_naive == "Up-reg" & DEtype_aware == "Up-reg") 
-
-d_compensated <- res_joint %>% 
-  dplyr::filter(DEtype_naive == "n.s." & DEtype_aware == "Down-reg" | 
-                  DEtype_naive == "n.s." & DEtype_aware == "Up-reg") 
-
-non_deg <- res_joint %>% 
-  dplyr::filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
+# Combine CN and DE data
+combine_results <- function(res_naive, res_aware, cnv_tumor, loss_labels) {
+  loss_labels <- loss_labels %>% 
+    dplyr::mutate(geneID = rownames(loss_labels))
+  cnv_mean <- cnv_tumor %>%
+    dplyr::mutate(geneID = rownames(cnv_tumor),
+           cnv_mean = rowMeans(cnv_tumor)) %>%
+    dplyr::select(geneID, cnv_mean) %>%
+    left_join(loss_labels, by = "geneID") %>%
+    mutate(cnv_group = case_when(
+      cnv_mean > 0 & cnv_mean <= 1.7  ~ "loss",
+      cnv_mean > 1.7 & cnv_mean <= 2.5  ~ "neutral",
+      cnv_mean > 2.5 & cnv_mean <= 4.0 ~ "gain",
+      cnv_mean > 4.0 ~ "amplification"
+    ))
+  
+  list(res_naive = cbind(res_naive, cnv_mean), 
+       res_aware = cbind(res_aware, cnv_mean))
+}
 
 
-# CN-naive #
-cn_naive_d_sensitive <- d_sensitive %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
+# Main analysis pipeline #
+
+tumor_type <- c("LUAD")
+lfc_cut = 1.0
+pval_cut = 0.05 
+loss_threshold = 0.25
+
+data <- read_data(tumor_type)
+cnv_data <- process_cnv_data(data$cnv_tumor, loss_threshold)
+
+res_naive <- annotate_results(data$res_pydeseq, lfc_cut, pval_cut, "CN naive", tumor_type)
+res_aware <- annotate_results(data$res_deconveil, lfc_cut, pval_cut, "CN aware", tumor_type)
+cnv_mean <- data$cnv_tumor
+
+combined <- combine_results(res_naive, res_aware, cnv_tumor, cnv_data$loss_labels)
+
+combined[["res_naive"]] <- combined[["res_naive"]] %>% dplyr::rename(logFC = log2FoldChange)
+combined[["res_aware"]] <- combined[["res_aware"]] %>% dplyr::rename(logFC = log2FoldChange)
+
+# Separate gene groups
+res_joint <- combined$res_naive %>%
+  inner_join(combined$res_aware, by = "geneID", suffix = c("_naive", "_aware"))
+
+gene_groups <- list(
+  d_sensitive = res_joint %>%
+    filter(DEtype_naive == "Up-reg" & DEtype_aware == "n.s." | 
+             DEtype_naive == "Down-reg" & DEtype_aware == "n.s."),
+  d_insensitive = res_joint %>%
+    filter(DEtype_naive == "Down-reg" & DEtype_aware == "Down-reg" |
+             DEtype_naive == "Up-reg" & DEtype_aware == "Up-reg"),
+  d_compensated = res_joint %>%
+    filter(DEtype_naive == "n.s." & DEtype_aware == "Down-reg" | 
+             DEtype_naive == "n.s." & DEtype_aware == "Up-reg"),
+  non_deg = res_joint %>%
+    filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
+)
+
+plot_data <- bind_rows(
+  bind_cols(gene_groups$d_sensitive, gene_group = "Dosage-sensitive"),
+  bind_cols(gene_groups$d_insensitive, gene_group = "Dosage-insensitive"),
+  bind_cols(gene_groups$d_compensated, gene_group = "Dosage-compensated"),
+  bind_cols(gene_groups$non_deg, gene_group = "non-DEG")
+)
+
+
+# CN-naive 
+cn_naive_d_sensitive <- gene_groups[["d_sensitive"]] %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
   dplyr::mutate(gene_group = "Dosage-sensitive")
 colnames(cn_naive_d_sensitive) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_naive_d_insensitive <- d_insensitive %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
+cn_naive_d_insensitive <- gene_groups[["d_insensitive"]] %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
   dplyr::mutate(gene_group = "Dosage-insensitive")
 colnames(cn_naive_d_insensitive) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_naive_d_compensated <- d_compensated %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
+cn_naive_d_compensated <- gene_groups[["d_sensitive"]] %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
   dplyr::mutate(gene_group = "Dosage-compensated")
 colnames(cn_naive_d_compensated) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_naive_non_DE <- non_deg %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
+cn_naive_non_DE <- gene_groups[["non_DEG"]] %>% dplyr::select(logFC_naive, padj_naive, isDE_naive, DEtype_naive, tumor_type_naive, method_naive, cnv_mean_naive) %>% 
   dplyr::mutate(gene_group = "non-DEG")
 colnames(cn_naive_non_DE) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-# CN-aware #
-cn_aware_d_sensitive <- d_sensitive %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
+# CN-aware 
+cn_aware_d_sensitive <- gene_groups[["d_sensitive"]] %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
   dplyr::mutate(gene_group = "Dosage-sensitive")
 colnames(cn_aware_d_sensitive) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_aware_d_insensitive <- d_insensitive %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
+cn_aware_d_insensitive <- gene_groups[["d_insensitive"]] %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
   dplyr::mutate(gene_group = "Dosage-insensitive")
 colnames(cn_aware_d_insensitive) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_aware_d_compensated <- d_compensated %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
+cn_aware_d_compensated <- gene_groups[["d_compensated"]] %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
   dplyr::mutate(gene_group = "Dosage-compensated")
 colnames(cn_aware_d_compensated) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_aware_non_DE <- non_deg %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
+cn_aware_non_DE <- gene_groups[["non_DEG"]] %>% dplyr::select(logFC_aware, padj_aware, isDE_aware, DEtype_aware, tumor_type_aware, method_aware, cnv_mean_aware) %>% 
   dplyr::mutate(gene_group = "non-DEG")
 colnames(cn_aware_non_DE) <- c("log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
 cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated, cn_naive_non_DE)
 cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
 
+
 # Volcano plot #
 
-#cn_naive <- cn_naive[!(row.names(cn_naive) %in% c("PYCR1")),] #LUAD
-
 v_plot_data_luad <- rbind(cn_naive, cn_aware)
-v_plot_data_luad <- v_plot_data_luad %>% dplyr::filter(log2FC > -5.0 ,)
+v_plot_data_luad <- v_plot_data_luad %>% dplyr::filter(abs(log2FC) < 6.0 ,)
+
+v_plot_data_lusc <- rbind(cn_naive, cn_aware)
+v_plot_data_lusc <- v_plot_data_lusc %>% dplyr::filter(abs(log2FC) < 7.0 ,)
 
 v_plot_data_brca <- rbind(cn_naive, cn_aware)
-v_plot_data_brca <- v_plot_data_brca %>% dplyr::filter(log2FC < 5.5 ,)
-v_plot_data_brca <- v_plot_data_brca %>% dplyr::filter(padj > 4.929213e-191 ,)
+v_plot_data_brca <- v_plot_data_brca %>% dplyr::filter(abs(log2FC) < 7.0 ,)
+v_plot_data_brca <- v_plot_data_brca %>% dplyr::filter(padj > 2.840008e-169 ,)
 
 v_plot_data_lihc <- rbind(cn_naive, cn_aware)
-v_plot_data_lihc <- v_plot_data_lihc %>% dplyr::filter(log2FC < 5.0 ,)
-v_plot_data_lihc <- v_plot_data_lihc %>% dplyr::filter(padj > 4.332771e-67 ,)
+v_plot_data_lihc <- v_plot_data_lihc %>% dplyr::filter(abs(log2FC) < 5.0 ,)
+v_plot_data_lihc <- v_plot_data_lihc %>% dplyr::filter(padj > 4.949266e-74 ,)
 
-v_plot_data_hnsc <- rbind(cn_naive, cn_aware)
-v_plot_data_hnsc <- v_plot_data_hnsc %>% dplyr::filter(log2FC > -5.0 ,)
-v_plot_data_hnsc <- v_plot_data_hnsc %>% dplyr::filter(padj > 5.140434e-42 ,)
+#v_plot_data_hnsc <- rbind(cn_naive, cn_aware)
+#v_plot_data_hnsc <- v_plot_data_hnsc %>% dplyr::filter(abs(log2FC) < 6.0 ,)
+#v_plot_data_hnsc <- v_plot_data_hnsc %>% dplyr::filter(padj > 9.107506e-58 ,)
 
-v_plot_data_coad <- rbind(cn_naive, cn_aware)
-v_plot_data_coad <- v_plot_data_coad %>% dplyr::filter(log2FC < 6.0 ,)
+#v_plot_data_kirc <- rbind(cn_naive, cn_aware)
+#v_plot_data_kirc <- v_plot_data_hnsc %>% dplyr::filter(abs(log2FC) < 7.0 ,)
 
-v_plot_data <- rbind(v_plot_data_brca, v_plot_data_lihc, v_plot_data_hnsc, v_plot_data_coad)
+#v_plot_data_prad <- rbind(cn_naive, cn_aware)
+#v_plot_data_prad <- v_plot_data_prad %>% dplyr::filter(abs(log2FC) < 6.0 ,)
+#v_plot_data_prad <- v_plot_data_prad %>% dplyr::filter(padj > 3.518986e-36 ,)
+
+#v_plot_data_stad <- rbind(cn_naive, cn_aware)
+#v_plot_data_stad <- v_plot_data_stad %>% dplyr::filter(abs(log2FC) < 6.0 ,)
+#v_plot_data_stad <- v_plot_data_stad %>% dplyr::filter(padj > 2.047383e-27 ,)
+
+
+v_plot_data <- rbind(v_plot_data_luad, v_plot_data_lusc, v_plot_data_brca, v_plot_data_lihc)
 
 gene_group_colors <- c("Dosage-insensitive" = "#8F3931FF", "Dosage-sensitive" = "#FFB977", "Dosage-compensated"="#FAE48BFF", "non-DEG" = "#ADB6B6FF")  
 cnv_colors <- c("loss" = "#0073C299", "neutral" = "#86868699", "gain" = "#cecb76", "amplification" = "#DC0000B2")
 
-p_volcanos <- v_plot_data_luad %>%
+p_volcanos <- v_plot_data %>%
   ggplot(mapping = aes(x = log2FC, y = -log10(padj))) +
-  geom_point(data = subset(v_plot_data_luad, gene_group %in% c("Dosage-insensitive", "non-DEG")),
+  geom_point(data = subset(v_plot_data, gene_group %in% c("Dosage-insensitive", "non-DEG")),
              aes(col = gene_group), size = 1.0, alpha = 0.3) +
-  geom_point(data = subset(v_plot_data_luad, gene_group %in% c("Dosage-sensitive", "Dosage-compensated")),
+  geom_point(data = subset(v_plot_data, gene_group %in% c("Dosage-sensitive", "Dosage-compensated")),
              aes(col = gene_group), size = 2.0, alpha = 0.5) +
   scale_color_manual(values = gene_group_colors) +
   theme_bw() +
-  scale_x_continuous(breaks = seq(floor(min(v_plot_data_luad$log2FC)), 
-                                  ceiling(max(v_plot_data_luad$log2FC)), by = 2)) +
-  #ggh4x::facet_nested(factor(method, levels = c("CN naive", "CN aware"))~factor(tumor_type, levels = c("BRCA", "LIHC", "HNSC", "COAD")), scales ="free", independent = "y")+
-  facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), nrow = 1) +
+  scale_x_continuous(breaks = seq(floor(min(v_plot_data_stad$log2FC)), 
+                                  ceiling(max(v_plot_data_stad$log2FC)), by = 2)) +
+  ggh4x::facet_nested(factor(method, levels = c("CN naive", "CN aware"))~factor(tumor_type, levels = c("LUAD", "LUSC", "BRCA", "LIHC")), scales ="free", independent = "y")+
+  #facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), nrow = 1) +
   labs(x = expression(Log[2] ~ FC), y = expression(-log[10] ~ Pvalue), col = "Gene group") +
   geom_vline(xintercept = c(-lfc_cut, lfc_cut), linetype = 'dashed') +
   geom_hline(yintercept = -log10(pval_cut), linetype = "dashed") +
@@ -346,13 +349,13 @@ combined_data$gene_group <- factor(combined_data$gene_group, levels = c("non-DEG
 
 brca_barplot <- combined_data
 lihc_barplot <- combined_data
-hnsc_barplot <- combined_data
-coad_barplot <- combined_data
-coad_barplot <- na.omit(coad_barplot)
+luad_barplot <- combined_data
+lusc_barplot <- combined_data
 
-joint_data <- rbind(brca_barplot, lihc_barplot, hnsc_barplot, coad_barplot)
 
-joint_data$tumor_type <- factor(joint_data$tumor_type, levels = c("BRCA", "LIHC", "HNSC", "COAD"))
+joint_data <- rbind(brca_barplot, lihc_barplot, lusc_barplot, luad_barplot)
+
+joint_data$tumor_type <- factor(joint_data$tumor_type, levels = c("BRCA", "LIHC", "LUAD", "LUSC"))
 
 barplot_cnv <- ggplot2::ggplot(joint_data, aes(x = gene_group, fill = cnv_group)) +
   geom_bar(position = "stack", width = 0.6) + 
