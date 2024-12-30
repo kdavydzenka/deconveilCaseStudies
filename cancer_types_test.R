@@ -182,7 +182,7 @@ combine_results <- function(res_naive, res_aware, cnv_tumor, loss_labels) {
 
 # Main analysis pipeline #
 
-tumor_type <- c("KIRC")
+tumor_type <- c("LUAD")
 lfc_cut = 1.0
 pval_cut = 0.05 
 loss_threshold = 0.25
@@ -348,6 +348,7 @@ barplot_data <- combined_data %>%
 
 combined_data$gene_group <- factor(combined_data$gene_group, levels = c("non-DEGs", "DIGs", "DSGs", "DCGs"))
 
+luad_barplot <- combined_data
 lusc_barplot <- combined_data
 brca_barplot <- combined_data
 lihc_barplot <- combined_data
@@ -357,20 +358,20 @@ kirc_barplot <- combined_data
 joint_data <- rbind(lusc_barplot, brca_barplot, lihc_barplot, kirc_barplot)
 joint_data$tumor_type <- factor(joint_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
 
-barplot_cnv <- ggplot2::ggplot(joint_data, aes(x = gene_group, fill = cnv_group)) +
+barplot_cnv <- ggplot2::ggplot(luad_barplot, aes(x = gene_group, fill = cnv_group)) +
   geom_bar(position = "stack", width = 0.6) + 
   #geom_text(aes(label = Count), position = position_stack(vjust = 0.5), size = 4) +  
   scale_fill_manual(values = cnv_colors) +  
   theme_classic2() +  
-  facet_wrap(~tumor_type, scales = "free", nrow = 1)+
+  #facet_wrap(~tumor_type, scales = "free", nrow = 1)+
   labs(y = "gene counts", x = "", title = "", fill = "CN group") +  
   theme(
-    axis.text.x = element_text(size = 14, angle = 30, hjust = 1, color = "black"),  
-    axis.text.y = element_text(size = 14, color = "black"),                         
-    axis.title.x = element_text(size = 14, face = "plain", color = "black"),          
-    axis.title.y = element_text(size = 14, face = "plain", color = "black"),
+    axis.text.x = element_text(size = 18, angle = 30, hjust = 1, color = "black"),  
+    axis.text.y = element_text(size = 16, color = "black"),                         
+    axis.title.x = element_text(size = 18, face = "plain", color = "black"),          
+    axis.title.y = element_text(size = 18, face = "plain", color = "black"),
     strip.text = element_text(size = 16, face = "plain", color = "black"),
-    legend.position = 'bottom',
+    legend.position = '',
     legend.text = element_text(size = 14, color = "black"),                          
     legend.title = element_text(size = 16, face = "plain", color = "black")           
   )
@@ -495,7 +496,7 @@ kirc_pval <- plot_pval %>% dplyr::mutate(tumor_type = "KIRC")
 
 joint_pvalue <- rbind(lusc_pval, brca_pval, lihc_pval, kirc_pval)
 
-comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_aware), color = cnv_group)) + 
+comparison_pval <- ggplot(luad_pval, aes(x=-log10(padj_naive), y=-log10(padj_aware), color = cnv_group)) + 
   geom_point(shape=20, size=3) +
   geom_abline()+
   xlab("FDR CN-aware") +
@@ -504,12 +505,12 @@ comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_
   scale_y_continuous(breaks = seq(0, 140, by = 40))+
   scale_color_manual(name = "CNV group", values = cnv_colors)+
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))+
-  #facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
+  facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
   theme_bw()+
-  ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~
-                        factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
+  #ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~
+                        #factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
   theme(
-    legend.position="bottom",
+    legend.position="",
     axis.title.x = element_text(size=16, color = "black"),  
     axis.title.y = element_text(size=16, color = "black"),
     axis.text.x = element_text(size=16, color = "black"),    
@@ -520,7 +521,7 @@ comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_
   )
 comparison_pval
 
-ggsave("deconveilCaseStudies/plots/main/scatter_pvalue_luad.png", dpi = 400, width = 12.0, height = 4.5, plot = comparison_pval)
+ggsave("deconveilCaseStudies/plots/main/scatter_pvalue_luad.png", dpi = 400, width = 8.0, height = 3.0, plot = comparison_pval)
 ggsave("deconveilCaseStudies/plots/supplementary/scatter_pval_pancancer.png", dpi = 400, width = 8.0, height = 8.0, plot = comparison_pval)
   
 

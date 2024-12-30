@@ -461,3 +461,47 @@ summarize_performance <- function(data) {
                  names_sep = "_", values_to = "Value") %>%
     pivot_wider(names_from = Stat, values_from = Value)
 }
+
+
+perform_enrichment_H <- function(gene_df, gene_group) {
+  my_symbols <- gene_df$geneID
+  gene_list <- AnnotationDbi::select(org.Hs.eg.db,
+                                     keys = my_symbols,
+                                     columns = c("ENTREZID", "SYMBOL"),
+                                     keytype = "SYMBOL")
+  gene_l <- as.vector(gene_list$ENTREZID)
+  m_hallmark <- msigdbr::msigdbr(species = "Homo sapiens", category = "H") 
+  msig_H <- msigdbr(species = "Homo sapiens", category = "H") %>% dplyr::select(gs_name, entrez_gene)
+  msig_H <- enricher(gene_l, minGSSize = 10, 
+                     maxGSSize = 350,
+                     pvalueCutoff = 0.05, 
+                     pAdjustMethod = "BH", 
+                     TERM2GENE = msig_H)
+  
+  msig_H@result %>% mutate(gene_group = gene_group)
+}
+
+
+perform_enrichment_GO <- function(gene_df, gene_group) {
+  my_symbols <- gene_df$geneID
+  gene_list <- AnnotationDbi::select(org.Hs.eg.db,
+                                     keys = my_symbols,
+                                     columns = c("ENTREZID", "SYMBOL"),
+                                     keytype = "SYMBOL")
+  gene_l <- as.vector(gene_list$ENTREZID)
+  oraGO <- enrichGO(gene = gene_l, 
+                    ont = "BP", 
+                    OrgDb = org.Hs.eg.db, 
+                    keyType = "ENTREZID", 
+                    pvalueCutoff = 0.05, 
+                    minGSSize = 10, 
+                    maxGSSize = 350)
+  
+  oraGO@result %>% mutate(gene_group = gene_group)
+}
+
+convert_entrez_to_symbol <- function(entrez_ids) {
+  entrez_list <- unlist(strsplit(entrez_ids, split = "/"))
+  gene_symbols <- mapIds(org.Hs.eg.db, entrez_list, "SYMBOL", "ENTREZID")
+  return(paste(gene_symbols, collapse = ", "))
+}
