@@ -8,8 +8,8 @@ sapply(pkgs, require, character.only = TRUE)
 
 # Input data
 
-tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC")
-#tumor_type <- c("LUAD")
+#tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC")
+tumor_type <- c("LUAD")
 base_dir <- "TCGA"
 
 cnv_mean_all <- data.frame()
@@ -182,7 +182,7 @@ combine_results <- function(res_naive, res_aware, cnv_tumor, loss_labels) {
 
 # Main analysis pipeline #
 
-tumor_type <- c("LUAD")
+tumor_type <- c("BRCA")
 lfc_cut = 1.0
 pval_cut = 0.05 
 loss_threshold = 0.25
