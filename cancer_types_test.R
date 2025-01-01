@@ -9,7 +9,7 @@ sapply(pkgs, require, character.only = TRUE)
 # Input data
 
 #tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC")
-tumor_type <- c("LUAD")
+tumor_type <- c("BRCA")
 base_dir <- "TCGA"
 
 cnv_mean_all <- data.frame()
@@ -213,9 +213,9 @@ gene_groups <- list(
              DEtype_naive == "Up-reg" & DEtype_aware == "Up-reg"),
   d_compensated = res_joint %>%
     filter(DEtype_naive == "n.s." & DEtype_aware == "Down-reg" | 
-             DEtype_naive == "n.s." & DEtype_aware == "Up-reg"),
-  non_deg = res_joint %>%
-    filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
+             DEtype_naive == "n.s." & DEtype_aware == "Up-reg")
+  #non_deg = res_joint %>%
+    #filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
 )
 
 
@@ -254,8 +254,11 @@ cn_aware_non_DE <- gene_groups[["non_deg"]] %>% dplyr::select(geneID, logFC_awar
   dplyr::mutate(gene_group = "non-DEGs")
 colnames(cn_aware_non_DE) <- c("geneID", "log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated, cn_naive_non_DE)
-cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
+#cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated, cn_naive_non_DE)
+#cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
+
+cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated)
+cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
 
 
 # Volcano plot #
@@ -325,7 +328,8 @@ ggsave("deconveilCaseStudies/plots/supplementary/volcano_pancancer.png", dpi = 4
 
 
 # CN barplot
-combined_data <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
+#combined_data <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
+combined_data <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
 
 combined_data <- combined_data %>% 
   dplyr::mutate(cnv_group = case_when(
@@ -358,7 +362,7 @@ kirc_barplot <- combined_data
 joint_data <- rbind(lusc_barplot, brca_barplot, lihc_barplot, kirc_barplot)
 joint_data$tumor_type <- factor(joint_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
 
-barplot_cnv <- ggplot2::ggplot(luad_barplot, aes(x = gene_group, fill = cnv_group)) +
+barplot_cnv <- ggplot2::ggplot(brca_barplot, aes(x = gene_group, fill = cnv_group)) +
   geom_bar(position = "stack", width = 0.6) + 
   #geom_text(aes(label = Count), position = position_stack(vjust = 0.5), size = 4) +  
   scale_fill_manual(values = cnv_colors) +  
@@ -371,13 +375,31 @@ barplot_cnv <- ggplot2::ggplot(luad_barplot, aes(x = gene_group, fill = cnv_grou
     axis.title.x = element_text(size = 18, face = "plain", color = "black"),          
     axis.title.y = element_text(size = 18, face = "plain", color = "black"),
     strip.text = element_text(size = 16, face = "plain", color = "black"),
-    legend.position = '',
+    legend.position = 'bottom',
     legend.text = element_text(size = 14, color = "black"),                          
     legend.title = element_text(size = 16, face = "plain", color = "black")           
   )
 barplot_cnv
 
-ggsave("deconveilCaseStudies/plots/main/barplot_cnv_luad.png", dpi = 400, width = 6.0, height = 6.0, plot = barplot_cnv)
+barplot_stat <- ggplot2::ggplot(barplot_data, aes(x = gene_group, y = percentage, fill = gene_group)) +
+  geom_bar(stat = "identity", color = "black", width = 0.6, alpha = 0.7) + 
+  geom_text(aes(label = Count), position = position_stack(vjust = 0.5), size = 4, color = "black") +  
+  scale_fill_manual(values = gene_group_colors) +  
+  theme_classic() +  
+  labs(y = "percentage of genes", x = "", title = "", fill = "Gene group") +  
+  theme(
+    axis.text.x = element_text(size = 16, angle = 30, hjust = 1, color = "black"),  
+    axis.text.y = element_text(size = 16, color = "black"),                         
+    axis.title.x = element_text(size = 16, face = "plain", color = "black"),          
+    axis.title.y = element_text(size = 16, face = "plain", color = "black"),          
+    legend.position = 'bottom',
+    legend.text = element_text(size = 14, color = "black"),                          
+    legend.title = element_text(size = 16, face = "plain")           
+  )
+barplot_stat
+
+ggsave("deconveilCaseStudies/plots/main/barplot_cnv_brca.png", dpi = 400, width = 5.0, height = 6.0, plot = barplot_cnv)
+ggsave("deconveilCaseStudies/plots/main/barplot_stats_brca.png", dpi = 400, width = 4.5, height = 5.0, plot = barplot_stat)
 ggsave("deconveilCaseStudies/plots/supplementary/barplot_cnv_pancancer.png", dpi = 400, width = 10.0, height = 4.5, plot = barplot_cnv)
 
 

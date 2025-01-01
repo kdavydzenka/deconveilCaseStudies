@@ -9,7 +9,7 @@ source("deconveilCaseStudies/utils.R")
 # Data preprocessing
 
 tumor_types <- c("LUAD", "LUSC", "BRCA", "LIHC")
-tumor_types <- c("LIHC")
+tumor_types <- c("BRCA")
 
 base_paths <- list(
   res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
@@ -122,6 +122,10 @@ cn_aware_d_sensitive <- extract_genes(gene_groups$d_sensitive, "Dosage-sensitive
 cn_aware_d_insensitive <- extract_genes(gene_groups$d_insensitive, "Dosage-insensitive")
 cn_aware_d_compensated <- extract_genes(gene_groups$d_compensated, "Dosage-compensated")
 
+#gene_groups_join <- list(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
+#names(gene_groups_join) <- c("d_sensitive", "d_insensitive", "d_compensated")
+#saveRDS(gene_groups_join, file = "TCGA/BRCA/case_study/gene_groups.RDS")
+
 upset_data <- cn_aware_d_compensated %>%
   mutate(present = 1) %>%
   pivot_wider(names_from = tumor_type, values_from = present, values_fill = 0) %>%
@@ -170,47 +174,45 @@ upset_plot
 
 
 # Identify shared and cancer-specific oncogenes/TSGs
-cancer_genes <- read.delim("TCGA/lung/cancerGeneList.tsv")
+#cancer_genes <- read.delim("TCGA/lung/cancerGeneList.tsv")
 
-oncogenes <- cancer_genes %>% dplyr::filter(Is.Oncogene=="Yes") %>% 
-  dplyr::select(Hugo.Symbol) %>% 
-  dplyr::rename(geneID = Hugo.Symbol) %>% 
-  dplyr::mutate(gene_type = "Oncogene")
+#oncogenes <- cancer_genes %>% dplyr::filter(Is.Oncogene=="Yes") %>% 
+  #dplyr::select(Hugo.Symbol) %>% 
+  #dplyr::rename(geneID = Hugo.Symbol) %>% 
+  #dplyr::mutate(gene_type = "Oncogene")
   
-tsg <- cancer_genes %>% dplyr::filter(Is.Tumor.Suppressor.Gene=="Yes") %>% 
-  dplyr::select(Hugo.Symbol) %>% 
-  dplyr::rename(geneID=Hugo.Symbol) %>% 
-  dplyr::mutate(gene_type = "TSG")
+#tsg <- cancer_genes %>% dplyr::filter(Is.Tumor.Suppressor.Gene=="Yes") %>% 
+  #dplyr::select(Hugo.Symbol) %>% 
+  #dplyr::rename(geneID=Hugo.Symbol) %>% 
+  #dplyr::mutate(gene_type = "TSG")
   
-cancer_genes_oncokb <- rbind(oncogenes, tsg)
+#cancer_genes_oncokb <- rbind(oncogenes, tsg)
 
-d_compensated_cancer_g <- cn_aware_d_compensated[cn_aware_d_compensated$geneID %in% cancer_genes_oncokb$geneID ,]
-d_insensitive_cancer_g <- cn_aware_d_insensitive[cn_aware_d_insensitive$geneID %in% cancer_genes_oncokb$geneID ,]
-d_sensitive_cancer_g <- cn_aware_d_sensitive[cn_aware_d_sensitive$geneID %in% cancer_genes_oncokb$geneID ,]
+#d_compensated_cancer_g <- cn_aware_d_compensated[cn_aware_d_compensated$geneID %in% cancer_genes_oncokb$geneID ,]
+#d_insensitive_cancer_g <- cn_aware_d_insensitive[cn_aware_d_insensitive$geneID %in% cancer_genes_oncokb$geneID ,]
+#d_sensitive_cancer_g <- cn_aware_d_sensitive[cn_aware_d_sensitive$geneID %in% cancer_genes_oncokb$geneID ,]
 
-cancer_gene_lists <- d_sensitive_cancer_g %>%
-  group_by(tumor_type, gene_group) %>%
-  summarise(geneIDs = list(geneID), .groups = "drop")
+#cancer_gene_lists <- d_sensitive_cancer_g %>%
+  #group_by(tumor_type, gene_group) %>%
+  #summarise(geneIDs = list(geneID), .groups = "drop")
 
-cancer_gene_lists <- cancer_gene_lists %>%
-  with(setNames(geneIDs, tumor_type))
+#cancer_gene_lists <- cancer_gene_lists %>%
+  #with(setNames(geneIDs, tumor_type))
 
-ggvenn(cancer_gene_lists, 
-       show_percentage = FALSE,  #
-       fill_color = c("#E6A9EC", "#A9CDE6", "#E6D7A9", "#A9E6B3")) 
+#ggvenn(cancer_gene_lists, 
+       #show_percentage = FALSE,  #
+       #fill_color = c("#E6A9EC", "#A9CDE6", "#E6D7A9", "#A9E6B3")) 
 
+#tumor_specific_cancer_g <- lapply(names(cancer_gene_lists), function(tumor) {
+  #setdiff(cancer_gene_lists[[tumor]], unlist(cancer_gene_lists[-match(tumor, names(cancer_gene_lists))]))
+#})
+#names(tumor_specific_cancer_g) <- names(cancer_gene_lists)
 
-tumor_specific_cancer_g <- lapply(names(cancer_gene_lists), function(tumor) {
-  setdiff(cancer_gene_lists[[tumor]], unlist(cancer_gene_lists[-match(tumor, names(cancer_gene_lists))]))
-})
-names(tumor_specific_cancer_g) <- names(cancer_gene_lists)
-
-
-common_cancer_g <- lapply(names(cancer_gene_lists), function(tumor) {
-  setdiff(unlist(cancer_gene_lists), tumor_specific_cancer_g[[tumor]])
-})
-names(common_cancer_g) <- names(cancer_gene_lists)
-common_cancer_g <- Reduce(intersect, common_cancer_g)
+#common_cancer_g <- lapply(names(cancer_gene_lists), function(tumor) {
+  #setdiff(unlist(cancer_gene_lists), tumor_specific_cancer_g[[tumor]])
+#})
+#names(common_cancer_g) <- names(cancer_gene_lists)
+#common_cancer_g <- Reduce(intersect, common_cancer_g)
 
 
 ## Extract each gene category ##
@@ -381,6 +383,7 @@ plot_GO
 
 ggsave("deconveilCaseStudies/plots/main/GO_dotplot_pancancer.png", dpi = 400, width = 22.0, height = 5.0, plot = plot_GO)
 
+  
 #p_data <- rbind(res_GO_d_sensitive, res_GO_d_compensated, res_GO_d_insensitive)
 #p_data$gene_group <- as.factor(p_data$gene_group)
 #p_data <- p_data %>%

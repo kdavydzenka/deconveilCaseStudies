@@ -4,17 +4,149 @@ setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse", "survival", "glmnet", "survminer", "survcomp", "DESeq2", "forestplot", "caret", "randomForestSRC", "gridExtra", "RColorBrewer")
 sapply(pkgs, require, character.only = TRUE)
 
-# Prepare data #
-d_compensated <- readRDS("TCGA/brca/case_study/d_compensated_genes_2.RDS")
+# Define functions
+
+prepare_data <- function(rna_data, clinical_data) {
+  clinical_data <- clinical_data %>% 
+    dplyr::select(bcr_patient_barcode, days_to_death, days_to_last_followup) %>%
+    mutate(
+      event = ifelse(!is.na(days_to_death), 1, 0),
+      time = ifelse(!is.na(days_to_death), days_to_death, days_to_last_followup)
+    ) %>%
+    dplyr::select(bcr_patient_barcode, time, event) %>% 
+    drop_na()
+  colnames(clinical_data) <- c("patientID", "time", "event")
+  
+  # Ensure consistency between RNA and clinical data
+  colnames(rna_data) <- substr(colnames(rna_data), 1, 12)
+  clinical_data <- clinical_data[clinical_data$patientID %in% colnames(rna_data),]
+  rna_data <- rna_data[, (colnames(rna_data) %in% clinical_data$patientID)]
+  
+  return(list(rna_data = rna_data, clinical_data = clinical_data))
+}
+
+apply_cn_correction <- function(rna, cn, apply_correction = TRUE) {
+  if (apply_correction) {
+    cn <- cn[(rownames(cn) %in% rownames(rna)), ]
+    cn <- cn[, (colnames(cn) %in% colnames(rna))]
+    cn <- apply(cn, 2, function(x) ifelse(x > 10, 10, x)) / 2
+    cn[cn == 0] <- 0.001
+    rna <- rna * cn
+  }
+  return(rna)
+}
+
+run_survival_analysis <- function(rna_data, clinical_data, output_file) {
+  clinical <- clinical_data %>% remove_rownames() %>% column_to_rownames(var = "patientID")
+  idx <- match(clinical$patientID, colnames(rna_data))
+  rna_data <- rna_data[, idx]
+  rna_data <- t(rna_data)
+  data <- cbind(clinical, rna_data)
+  
+  # Cox proportional hazards model
+  surv_object <- survival::Surv(time = clinical$time, event = clinical$event)
+  cox_results <- data.frame(Gene = character(), p.value = numeric(), HR = numeric(), CI_lower = numeric(), CI_upper = numeric())
+  
+  for (gene in colnames(rna_data)) {
+    cox_model <- coxph(surv_object ~ rna_data[, gene], data = data)
+    summary_cox <- summary(cox_model)
+    
+    cox_results <- rbind(cox_results, data.frame(
+      Gene = gene,
+      p.value = summary_cox$coefficients[, "Pr(>|z|)"],
+      HR = summary_cox$coefficients[, "exp(coef)"],
+      CI_lower = summary_cox$conf.int[, "lower .95"],
+      CI_upper = summary_cox$conf.int[, "upper .95"]
+    ))
+  }
+  
+  # Filter significant genes
+  significant_genes <- cox_results %>% filter(p.value < 0.05)
+  saveRDS(significant_genes, file = output_file)
+  return(significant_genes)
+}
+
+build_prognostic_signature <- function(rna_data, clinical_data, significant_genes, lasso_output_file) {
+  X <- as.matrix(rna_data[, significant_genes$Gene])
+  y <- survival::Surv(time = clinical_data$time, event = clinical_data$event)
+  
+  # LASSO regularization
+  cv_model <- cv.glmnet(X, y, family = "cox", alpha = 1)
+  optimal_lambda <- cv_model$lambda.min
+  
+  lasso_model <- glmnet(X, y, family = "cox", alpha = 1, lambda = optimal_lambda)
+  lasso_coefs <- coef(lasso_model, s = optimal_lambda)
+  lasso_coefs_df <- as.data.frame(as.matrix(lasso_coefs))
+  selected_genes <- rownames(lasso_coefs_df)[lasso_coefs_df$`1` != 0]
+  
+  saveRDS(selected_genes, file = lasso_output_file)
+  return(selected_genes)
+}
+
+process_gene_group <- function(gene_group, rna_tumor, cn_tumor, clinical_data, apply_cn_correction_flag, output_dir) {
+  rna_subset <- rna_tumor[rownames(rna_tumor) %in% gene_group$geneID, ]
+  rna_corrected <- apply_cn_correction(rna_subset, cn_tumor, apply_correction = apply_cn_correction_flag)
+  prepared_data <- prepare_data(rna_corrected, clinical_data)
+  
+  significant_genes <- run_survival_analysis(prepared_data$rna_data, prepared_data$clinical_data, 
+                                             output_file = paste0(output_dir, "/significant_genes.RDS"))
+  
+  selected_genes <- build_prognostic_signature(prepared_data$rna_data, prepared_data$clinical_data, 
+                                               significant_genes, lasso_output_file = paste0(output_dir, "/prognostic_signature.RDS"))
+  
+  return(selected_genes)
+}
+
+# Load data
+gene_groups <- readRDS("TCGA/BRCA/case_study/gene_groups.RDS")
 clinical_data <- readRDS("TCGA/brca/clinical_full.RDS")
-rna <- read.csv("TCGA/brca/case_study/rna.csv")
-rna_tumor <- readRDS("TCGA/brca/rna_tumor.RDS")
-cnv_tumor <- readRDS("TCGA/brca/cnv_tumor.RDS")
+rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
+cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
+
+rna_subset <- rna_tumor[rownames(rna_tumor) %in% gene_group$geneID, ]
+prepared_data <- prepare_data(rna_subset, clinical_data)
+significant_genes <- run_survival_analysis(prepared_data$rna_data, prepared_data$clinical_data, 
+                                           output_file = paste0(output_dir, "/significant_genes.RDS"))
+
+output_dir <- "TCGA/BRCA/case_study"
+
+selected_genes_ds <- process_gene_group(
+  gene_group = gene_groups[["d_sensitive"]],
+  rna_tumor = rna_tumor,
+  cn_tumor = cnv_tumor,
+  clinical_data = clinical_data,
+  apply_cn_correction_flag = FALSE,
+  output_dir = paste0(output_dir, "/rna_ds")
+)
+
+selected_genes_dins <- process_gene_group(
+  gene_group = gene_groups[["d_insensitive"]],
+  rna_tumor = rna_tumor,
+  cn_tumor = cnv_tumor,
+  clinical_data = clinical_data,
+  apply_cn_correction_flag = TRUE,
+  output_dir = paste0(output_dir, "/rna_dins")
+)
+
+selected_genes_dcomp <- process_gene_group(
+  gene_group = gene_groups[["d_compensated"]],
+  rna_tumor = rna_tumor,
+  cn_tumor = cnv_tumor,
+  clinical_data = clinical_data,
+  apply_cn_correction_flag = TRUE,
+  output_dir = paste0(output_dir, "/rna_dcomp")
+)
+
+# Main workflow
+
+# Load data
+gene_groups <- readRDS("TCGA/BRCA/case_study/gene_groups.RDS")
+clinical_data <- readRDS("TCGA/brca/clinical_full.RDS")
+rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
+cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
 
 colnames(rna_tumor) <- substr(colnames(rna_tumor), 1, 12)
 colnames(cnv_tumor) <- substr(colnames(rna_tumor), 1, 12)
-rna_tumor <- rna_tumor[(rownames(rna_tumor) %in% rna$X),]
-cnv_tumor <- cnv_tumor[(rownames(cnv_tumor) %in% rna$X),]
 clinical_data <- clinical_data[clinical_data$bcr_patient_barcode %in% colnames(rna_tumor),]
 rna_tumor <- rna_tumor[,(colnames(rna_tumor) %in% clinical_data$bcr_patient_barcode)]
 
@@ -29,10 +161,12 @@ clinical_data <- clinical_data %>%
   drop_na() 
 colnames(clinical_data) <- c("patientID", "time", "event")
 
-rna_d_compensated_genes <- rna_tumor[(rownames(rna_tumor) %in% rownames(d_compensated)),]
+rna_ds <- rna_tumor[(rownames(rna_tumor) %in% gene_groups[["d_sensitive"]]$geneID),]
+rna_dins <- rna_tumor[(rownames(rna_tumor) %in% gene_groups[["d_insensitive"]]$geneID),]
+rna_dcomp <- rna_tumor[(rownames(rna_tumor) %in% gene_groups[["d_compensated"]]$geneID),]
 
 # GE normalization 
-rna_log_norm<- rna_d_compensated_genes %>% as.matrix() %>% DESeq2::varianceStabilizingTransformation()
+rna_log_norm<- rna_dcomp %>% as.matrix() %>% DESeq2::varianceStabilizingTransformation()
 cnv_tumor <- cnv_tumor[(rownames(cnv_tumor) %in% rownames(rna_log_norm)) ,]
 cnv_tumor <- cnv_tumor[,(colnames(cnv_tumor) %in% colnames(rna_log_norm)) ]
 cnv_tumor <- apply(cnv_tumor, 2, function(x) ifelse(x > 10, 10, x))
@@ -71,7 +205,7 @@ for (gene in colnames(rna)) {
 
 significant_genes <- cox_results %>% filter(p.value < 0.05)
 
-saveRDS(significant_genes, file = "TCGA/brca/case_study/significant_genes_cox.RDS")
+saveRDS(significant_genes, file = "TCGA/BRCA/case_study/significant_genes_dcomp.RDS")
 
 # The Hazard Ratio (HR) and confidence intervals (CI) give an indication of the prognostic impact of each gene. 
 # Genes with HR > 1 may be associated with poor prognosis, while HR < 1 suggests good prognosis.
@@ -94,8 +228,6 @@ lasso_coefs_df <- as.data.frame(as.matrix(lasso_coefs))
 selected_genes <- rownames(lasso_coefs_df)[lasso_coefs_df$`1` != 0]
 selected_genes
 
-saveRDS(selected_genes, file = "TCGA/brca/case_study/prognostic_signature_aware.RDS")
-
 
 # Calculate the prognostic score for each patient
 prognostic_score <- X[, selected_genes] %*% lasso_coefs[selected_genes,]
@@ -115,6 +247,8 @@ surv_fit <- survfit(Surv(time, event) ~ risk_group, data = clinical)
 # Forest plot using ggplot
 
 sel_genes_data <- significant_genes %>% dplyr::filter(Gene %in% c(selected_genes))
+
+saveRDS(sel_genes_data, file = "TCGA/BRCA/case_study/prognostic_signature_dcomp.RDS")
 
 plot_data <- sel_genes_data %>%
   mutate(
@@ -162,6 +296,8 @@ table_plot <- tableGrob(table_text, rows = NULL,
 # Combine forest plot and table plot
 grid.arrange(forest_plot, table_plot, ncol = 2, widths = c(1, 2))
 
+
+
 ### Perform prognostic model validation using external cohort METABRIC ###
 
 # Data preprocessin
@@ -179,7 +315,8 @@ cn_metabric <- cn_metabric %>% dplyr::select(-Entrez_Gene_Id) %>%
 
 clinical_metabric <- clinical_metabric[-c(1:4),]
 #clinical_metabric <- clinical_metabric[clinical_metabric$Cohort == 6,]
-clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ]
+#clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ]
+clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1), ] # DSGs, DIGs
 clinical_metabric <- clinical_metabric %>% dplyr::select("#Patient Identifier", "Overall Survival (Months)", "Overall Survival Status")
 colnames(clinical_metabric) <- c("patientID", "time", "event")
 clinical_metabric$time <- as.numeric(clinical_metabric$time)
@@ -220,33 +357,34 @@ cn_metabric <- cn_metabric/2
 
 
 # Subset METABRIC data for the same genes used in TCGA-BRCA
-rna_metabric_d_compensated <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_d_compensated_genes)),]
-cn_metabric_d_compensated <- cn_metabric[(rownames(cn_metabric) %in% rownames(rna_d_compensated_genes)),]
+rna_metabric_dcomp <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_dcomp)),]
+cn_metabric_dcomp <- cn_metabric[(rownames(cn_metabric) %in% rownames(rna_dcomp)),]
 
-rna_metabric_d_compensated <- rna_metabric_d_compensated[,(colnames(rna_metabric_d_compensated) %in% colnames(cn_metabric_d_compensated))]
-cn_metabric_d_compensated <- cn_metabric_d_compensated[,(colnames(cn_metabric_d_compensated) %in% colnames(rna_metabric_d_compensated))]
-idx <- match(colnames(rna_metabric_d_compensated), colnames(cn_metabric_d_compensated))
-cn_metabric_d_compensated <- cn_metabric_d_compensated[,idx]
+rna_metabric_dcomp <- rna_metabric_dcomp[,(colnames(rna_metabric_dcomp) %in% colnames(cn_metabric_dcomp))]
+cn_metabric_dcomp <- cn_metabric_dcomp[,(colnames(cn_metabric_dcomp) %in% colnames(rna_metabric_dcomp))]
+idx <- match(colnames(rna_metabric_dcomp), colnames(cn_metabric_dcomp))
+cn_metabric_dcomp <- cn_metabric_dcomp[,idx]
 
-rna_metabric_d_compensated <- rna_metabric_d_compensated * cn_metabric_d_compensated
-rna_metabric_d_compensated <- t(rna_metabric_d_compensated)
-rna_metabric_d_compensated <- rna_metabric_d_compensated %>% 
+rna_metabric_comp <- rna_metabric_dcomp * cn_metabric_dcomp
+rna_metabric_dcomp <- t(rna_metabric_dcomp)
+rna_metabric_dcomp <- rna_metabric_dcomp %>% 
   as.data.frame() %>% 
-  dplyr::mutate(patientID = rownames(rna_metabric_d_compensated))
+  dplyr::mutate(patientID = rownames(rna_metabric_dcomp))
 
-metabric_combined <- merge(clinical_metabric, rna_metabric_d_compensated, by = "patientID")
+metabric_combined <- merge(clinical_metabric, rna_metabric_dcomp, by = "patientID")
 
 # Ensure Matching Gene Names
 genes_in_lasso <- selected_genes
 genes_in_metabric <- colnames(metabric_combined)
 matching_genes <- intersect(genes_in_lasso, genes_in_metabric)
-matching_genes <- intersect(colnames(rna_metabric_d_compensated), rownames(coef(lasso_model)))
+matching_genes <- intersect(colnames(rna_metabric_dcomp), rownames(coef(lasso_model)))
 metabric_filtered <- metabric_combined[, matching_genes]
 lasso_coefficients <- lasso_coefs_df[matching_genes,]
 
 # Calculate the risk score for METABRIC data using the LASSO model coefficients
 metabric_risk_scores <- as.matrix(metabric_filtered) %*% lasso_coefficients
 metabric_combined$risk_score <- as.vector(metabric_risk_scores)
+metabric_combined <- metabric_combined %>% na.omit()
 
 # Stratify METABRIC patients into high/low risk groups based on median risk score
 metabric_combined$risk_group <- ifelse(metabric_combined$risk_score > median(metabric_combined$risk_score), "High", "Low")
@@ -288,7 +426,7 @@ surv_plot$table <- surv_plot$table +
     strip.text = element_text(size = 14, face = "plain"))
 surv_plot
 
-#ggsave("CN-aware-DGE/case_studies/plots/brca/km_TCGA.png", dpi = 400, width = 5.0, height = 10.0, plot = surv_plot)
+#ggsave("deconveilCaseStudies/case_studies/plots/brca/KM_ds_2.png", dpi = 400, width = 5.0, height = 10.0, plot = surv_plot)
 
 
 ## Calculate Concordance Index for both datasets ##
@@ -308,11 +446,11 @@ clinical$event <- as.numeric(as.character(clinical$event))
 cox_model_tcga <- coxph(Surv(time, event) ~ progn_score, data = clinical)
 
 cindex_cox_tcga <- concordance(cox_model_tcga)
-print(paste("C-index:", cindex_cox$concordance))
+print(paste("C-index:", cindex_cox_tcga$concordance))
 
 # METABRIC #
 clinical_metabric <- clinical_metabric %>% remove_rownames() %>% column_to_rownames("patientID")
-rna_metabric <- rna_metabric_d_compensated 
+rna_metabric <- rna_metabric_dcomp
 
 matching_genes <- intersect(selected_genes, colnames(rna_metabric))
 rna_metabric_selected <- rna_metabric[,matching_genes]
