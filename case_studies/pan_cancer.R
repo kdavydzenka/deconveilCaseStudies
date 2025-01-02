@@ -9,7 +9,7 @@ source("deconveilCaseStudies/utils.R")
 # Data preprocessing
 
 tumor_types <- c("LUAD", "LUSC", "BRCA", "LIHC")
-tumor_types <- c("BRCA")
+tumor_types <- c("LIHC")
 
 base_paths <- list(
   res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
@@ -243,7 +243,7 @@ gene_groups <- list(
   "Dosage-insensitive" = d_insensitive
 )
 
-
+# GO ORA
 res_ora_GO_list <- lapply(names(gene_groups), function(group_name) {
   gene_df <- gene_groups[[group_name]] %>% dplyr::select(geneID, log2FC)
   perform_enrichment_GO(gene_df, group_name)
@@ -255,6 +255,20 @@ res_GO_d_insensitive <- res_ora_GO_list[["Dosage-insensitive"]] %>% as.data.fram
 res_GO_d_compensated <- res_ora_GO_list[["Dosage-compensated"]] %>% as.data.frame()
 
 saveRDS(res_ora_GO_list, file = "deconveilCaseStudies/results/pancancer_ora_GO/lihc.RDS")
+
+
+# Hallmark ORA
+res_ora_H_list <- lapply(names(gene_groups), function(group_name) {
+  gene_df <- gene_groups[[group_name]] %>% dplyr::select(geneID, log2FC)
+  perform_enrichment_H(gene_df, group_name)
+})
+names(res_ora_H_list) <- names(gene_groups)
+
+res_H_d_sensitive <- res_ora_H_list[["Dosage-sensitive"]] %>% as.data.frame()
+res_H_d_insensitive <- res_ora_H_list[["Dosage-insensitive"]] %>% as.data.frame()
+res_H_d_compensated <- res_ora_H_list[["Dosage-compensated"]] %>% as.data.frame()
+
+saveRDS(res_ora_H_list, file = "deconveilCaseStudies/results/pancancer_ora_H/brca.RDS")
 
 
 
