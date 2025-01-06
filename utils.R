@@ -376,15 +376,13 @@ evaluate_simulation_performance <- function(n_samples, n_genes) {
   
   for (replicate in 1:10) {
     # Load true labels
-    true_labels_file <- paste0("CN-aware-DGE/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", n_samples, "_", n_genes, "_brca.rds")
+    true_labels_file <- paste0("deconveilCaseStudies/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", n_samples, "_", n_genes, "_brca.rds")
     true_labels <- readRDS(true_labels_file)@variable.annotations$differential.expression
     
     # Load prediction results for the current replicate
-    res_pydeseq <- read.csv(paste0("CN-aware-DGE/simulations/results/replicates_pydeseq/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".csv"))
-    res_deconveil <- read.csv(paste0("CN-aware-DGE/simulations/results/replicates_pydeseq/cn_aware/", replicate, "_res_CNaware_", n_samples, "_", n_genes, ".csv"))
-    
-    res_edge <- readRDS(paste0("CN-aware-DGE/simulations/results/replicates_edgeR/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".RDS"))
-    #res_aware_edge <- readRDS(paste0("CN-aware-DGE/simulations/results/replicates_edgeR/cn_aware/", replicate, "_res_CNaware_", n_samples, "_", n_genes, ".RDS"))
+    res_pydeseq <- read.csv(paste0("deconveilCaseStudies/simulations/results/replicates_pydeseq/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".csv"))
+    res_deconveil <- read.csv(paste0("deconveilCaseStudies/simulations/results/replicates_pydeseq/cn_aware/", replicate, "_res_CNaware_", n_samples, "_", n_genes, ".csv"))
+    res_edge <- readRDS(paste0("deconveilCaseStudies/simulations/results/replicates_edgeR/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".RDS"))
     
     # Process results
     res_pydeseq <- res_pydeseq %>% 
@@ -402,18 +400,13 @@ evaluate_simulation_performance <- function(n_samples, n_genes) {
     res_edge <- res_edge %>% 
       dplyr::select(logFC, padj) 
     
-    #res_aware_edge <- res_aware_edge %>% 
-      #dplyr::select(logFC, padj) 
-    
     # Binary predictions (padj < 0.05)
     predicted_pydeseq <- ifelse(res_pydeseq$padj < 0.05, 1, 0)
     predicted_deconveil <- ifelse(res_deconveil$padj < 0.05, 1, 0)
     predicted_edge <- ifelse(res_edge$padj < 0.05, 1, 0)
-    #predicted_aware_edge <- ifelse(res_aware_edge$padj < 0.05, 1, 0)
     
     # Replace NA values with 0 in predictions
     predicted_edge <- ifelse(is.na(predicted_edge), 0, predicted_edge)
-    #predicted_aware_edge <- ifelse(is.na(predicted_aware_edge), 0, predicted_aware_edge)
     
     # Function to compute performance metrics
     evaluate_performance <- function(true_labels, predicted_labels) {
@@ -434,12 +427,10 @@ evaluate_simulation_performance <- function(n_samples, n_genes) {
       metrics_df,
       data.frame(Method = "PyDESeq2", t(evaluate_performance(true_labels, predicted_pydeseq)), SampleSize = n_samples, Replicate = replicate),
       data.frame(Method = "DeConveil", t(evaluate_performance(true_labels, predicted_deconveil)), SampleSize = n_samples, Replicate = replicate),
-      data.frame(Method = "EdgeR", t(evaluate_performance(true_labels, predicted_edge)), SampleSize = n_samples, Replicate = replicate),
-      #data.frame(Method = "EdgeR-CN-aware", t(evaluate_performance(true_labels, predicted_aware_edge)), SampleSize = n_samples, Replicate = replicate)
+      data.frame(Method = "edgeR", t(evaluate_performance(true_labels, predicted_edge)), SampleSize = n_samples, Replicate = replicate)
     )
   }
   
-  # Return only the metrics_df with performance metrics for each replicate
   return(metrics_df)
 }
 
@@ -499,6 +490,7 @@ perform_enrichment_GO <- function(gene_df, gene_group) {
   
   oraGO@result %>% mutate(gene_group = gene_group)
 }
+
 
 convert_entrez_to_symbol <- function(entrez_ids) {
   entrez_list <- unlist(strsplit(entrez_ids, split = "/"))

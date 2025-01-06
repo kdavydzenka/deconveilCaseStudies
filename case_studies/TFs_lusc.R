@@ -152,45 +152,6 @@ ggvenn(
 )
 
 
-# Fisher exact test for genes overlap #
-
-A <- 282  # Dosage-compensated and TF targets
-B <- 391  # Dosage-compensated and not TF targets
-C<- 15064   # Not dosage-compensated but TF targets
-D <- 24263 # Neither dosage-compensated nor TF targets
-
-A <- 2149  # Dosage-insensitive and TF targets
-B <- 2572  # Dosage-compensated and not TF targets
-C <- 11016   # Not dosage-compensated but TF targets
-D <- 24263 # Neither dosage-compensated nor TF targets
-
-contingency_table <- matrix(c(A, B, C, D), nrow = 2, byrow = TRUE)
-colnames(contingency_table) <- c("TF Targets", "Non-TF Targets")
-rownames(contingency_table) <- c("Dosage-Compensated", "Non-Dosage-Compensated")
-fisher.test(contingency_table)
-
-overlap_results <- data.frame(
-  gene_group = c("Dosage-insensitive", "Dosage-compensated"),
-  p_value = c(2.2e-16, 0.06) 
-)
-
-ggplot(overlap_results, aes(x = gene_group, y = -log10(p_value), fill = gene_group)) +
-  geom_bar(stat = "identity", width = 0.4) +
-  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
-  geom_text(aes(label = paste0("p = ", signif(p_value, digits = 2))), 
-            vjust = -0.5, size = 5, color = "black") +
-  labs(
-    x = "Gene group",
-    y = "-log10(p-value)"
-  ) +
-  theme_classic() +
-  scale_fill_manual(values = c("#FAE48BFF", "#8F3931FF")) +
-  theme(
-    text = element_text(size = 12),
-    legend.position = "bottom"
-  )
-
-
 
 # Overrepresentation GO functional enrichment analysis
 

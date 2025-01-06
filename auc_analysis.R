@@ -13,7 +13,7 @@ gene_counts <- c(1000, 3000, 5000)
 n_replicates <- 10
 
 load_rna_counts <- function(sample, gene) {
-  file_path <- paste0("CN-aware-DGE/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", sample, "_", gene, "_brca.rds")
+  file_path <- paste0("deconveilCaseStudies/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", sample, "_", gene, "_brca.rds")
   readRDS(file_path)
 }
 
@@ -39,7 +39,7 @@ load_results <- function(method, approach, sample, gene, replicate, extension = 
   
   # Construct file path and name
   file_name <- paste0(replicate, "_res_", toupper(approach), "_", sample, "_", gene, ".", extension)
-  file_path <- file.path("CN-aware-DGE/simulations/results", method_dir, approach_dir, file_name)
+  file_path <- file.path("deconveilCaseStudies/simulations/results", method_dir, approach_dir, file_name)
   
   # Load file based on extension
   if (extension == "csv") {
@@ -60,25 +60,21 @@ for (sample in sample_sizes) {
   for (gene in gene_counts) {
     for (replicate in 1:n_replicates) {
       tryCatch({
-        # Load PyDESeq2 results (CN-naive and CN-aware)
-        res_naive_pydeseq <- load_results("pydeseq", "cnnaive", sample, gene, replicate, "csv")
-        res_aware_pydeseq <- load_results("pydeseq", "cnaware", sample, gene, replicate, "csv")
-        
-        # Load EdgeR results (CN-naive and CN-aware)
-        res_naive_edge <- load_results("edger", "cnnaive", sample, gene, replicate, "RDS")
-        res_aware_edge <- load_results("edger", "cnaware", sample, gene, replicate, "RDS")
+        # Load results (CN-naive & CN-aware)
+        res_pydeseq <- load_results("pydeseq", "cnnaive", sample, gene, replicate, "csv")
+        res_deconveil <- load_results("pydeseq", "cnaware", sample, gene, replicate, "csv")
+        res_edge <- load_results("edger", "cnnaive", sample, gene, replicate, "RDS")
         
         # Process results 
-        common_genes <- intersect(rownames(res_aware_edge), rownames(res_aware_pydeseq))
-        res_aware_pydeseq <- res_aware_pydeseq[common_genes, ]
-        res_aware_edge <- res_aware_edge[common_genes, ]
+        common_genes <- intersect(rownames(res_edge), rownames(res_deconveil))
+        res_deconveil <- res_deconveil[common_genes, ]
+        res_edge <- res_edge[common_genes, ]
         
         # Store processed results in the results list
         results_list[[paste(replicate, sample, gene, sep = "_")]] <- list(
-          naive_pydeseq = res_naive_pydeseq,
-          aware_pydeseq = res_aware_pydeseq,
-          naive_edge = res_naive_edge,
-          aware_edge = res_aware_edge
+          naive_pydeseq = res_pydeseq,
+          aware_deconveil = res_deconveil,
+          naive_edge = res_edge
         )
         message(sprintf("Successfully loaded results for sample: %d, genes: %d, replicate: %d", sample, gene, replicate))
       }, error = function(e) {
@@ -109,25 +105,21 @@ for (key in names(results_list)) {
     # Extract the current set of results
     result_set <- results_list[[key]]
     
-    # Process PyDESeq2 results (CN-naive and CN-aware)
-    res_naive_pydeseq <- process_results_pydeseq(result_set[["naive_pydeseq"]])
-    res_aware_pydeseq <- process_results_pydeseq(result_set[["aware_pydeseq"]])
-    
-    # Process EdgeR results (CN-naive and CN-aware)
-    res_naive_edge <- process_results_edge(result_set[["naive_edge"]])
-    res_aware_edge <- process_results_edge(result_set[["aware_edge"]])
+    # Process results (CN-naive & CN-aware)
+    res_pydeseq <- process_results_pydeseq(result_set[["naive_pydeseq"]])
+    res_deconveil <- process_results_pydeseq(result_set[["aware_deconveil"]])
+    res_edge <- process_results_edge(result_set[["naive_edge"]])
     
     # Align rownames between CN-aware PyDESeq2 and EdgeR results
-    rownames_idx <- match(rownames(res_aware_pydeseq), rownames(res_aware_edge))
-    res_aware_edge <- res_aware_edge[rownames_idx, ] %>% na.omit()
-    res_naive_edge <- res_naive_edge[rownames_idx, ] %>% na.omit()
+    rownames_idx <- match(rownames(res_deconveil), rownames(res_edge))
+    res_edge <- res_edge[rownames_idx, ] %>% na.omit()
+    res_deconveil <- res_deconveil[rownames_idx, ] %>% na.omit()
     
     # Save processed results in the list
     processed_results[[key]] <- list(
-      naive_pydeseq = res_naive_pydeseq,
-      aware_pydeseq = res_aware_pydeseq,
-      naive_edge = res_naive_edge,
-      aware_edge = res_aware_edge
+      naive_pydeseq = res_pydeseq,
+      aware_deconveil = res_deconveil,
+      naive_edge = res_edge
     )
     
     message(sprintf("Successfully processed results for: %s", key))
@@ -165,7 +157,7 @@ for (replicate in names(processed_results)) {
   
   p_values <- list()
   
-  for (method in c("naive_pydeseq", "aware_pydeseq", "naive_edge", "aware_edge")) {
+  for (method in c("naive_pydeseq", "aware_deconveil", "naive_edge")) {
     
     p <- as.data.frame(processed_results[[replicate]][[method]]$padj)
     rownames(p) <- rownames(processed_results[[replicate]][[method]])
@@ -183,7 +175,7 @@ for (replicate in names(processed_results)) {
   # Combine p-values for all methods into a data frame
   p_values_df <- do.call(cbind, p_values_filtered)
   rownames(p_values_df) <- names(true_labels)
-  colnames(p_values_df) <- c("PyDESeq2", "DeConveil", "EdgeR", "ABCD-DNA")
+  colnames(p_values_df) <- c("PyDESeq2", "DeConveil", "edgeR")
   
   # Calculate ROC and AUC for the current replicate
   roc_result <- auROC(
@@ -207,7 +199,7 @@ for (config in c("10_1000", "20_1000", "40_1000", "100_1000",
   
   method_auc_values <- list()
   
-  for (method in c("PyDESeq2", "DeConveil", "EdgeR", "ABCD-DNA")) {
+  for (method in c("PyDESeq2", "DeConveil", "edgeR")) {
     
     auc_values_for_method <- sapply(1:10, function(replicate_num) {
       replicate_name <- paste0(replicate_num, "_", config)  
@@ -276,11 +268,10 @@ reshaped_auc_df <- summary_auc_df_filt %>%
   dplyr::rename(
     PyDESeq2 = `PyDESeq2`,
     DeConveil = `DeConveil`,
-    EdgeR = `EdgeR`,
-    `ABCD-DNA` = `ABCD-DNA`
+    edgeR = `edgeR`
   )
 
-saveRDS(reshaped_auc_df, file = "CN-aware-DGE/simulations/auc_summary.RDS")
+saveRDS(reshaped_auc_df, file = "deconveilCaseStudies/simulations/auc_summary.RDS")
 
 
 
@@ -298,8 +289,7 @@ data_1000 <- data_1000 %>%
   dplyr::rename(
     PyDESeq2 = `PyDESeq2`,
     DeConveil = `DeConveil`,
-    EdgeR = `EdgeR`,
-    `ABCD-DNA` = `ABCD-DNA`
+    edgeR = `edgeR`
   )
 
 data_3000 <- summary_auc_df %>% 
@@ -311,8 +301,7 @@ data_3000 <- data_3000 %>%
   dplyr::rename(
     PyDESeq2 = `PyDESeq2`,
     DeConveil = `DeConveil`,
-    EdgeR = `EdgeR`,
-    `ABCD-DNA` = `ABCD-DNA`
+    edgeR = `edgeR`
   )
 
 data_5000 <- summary_auc_df %>% 
@@ -324,8 +313,7 @@ data_5000 <- data_5000 %>%
   dplyr::rename(
     PyDESeq2 = `PyDESeq2`,
     DeConveil = `DeConveil`,
-    EdgeR = `EdgeR`,
-    `ABCD-DNA` = `ABCD-DNA`
+    edgeR = `edgeR`
   )
 
 prepare_radar_data <- function(data, min_val = 0.6, max_val = 1.0) {
@@ -347,8 +335,8 @@ radar_data_3000 <- prepare_radar_data(data_3000)
 radar_data_5000 <- prepare_radar_data(data_5000)
 
 
-method_colors <- c("#0000FF",  "#4500ACFF", "#00BA38",  "#EE3F3FFF")
-method_labels <- c("ABCD-DNA", "EdgeR", "PyDESeq", "DeConveil")
+method_colors <- c("#0000FF",  "#00BA38",  "#EE3F3FFF")
+method_labels <- c("edgeR", "PyDESeq", "DeConveil")
 
 create_radarchart <- function(data, color = method_colors, 
                               vlabels = colnames(data), vlcex = 1.6,
@@ -383,35 +371,4 @@ legend("bottomright", legend = method_labels, col = method_colors,
        lty = 1, lwd = 2, bty = "n", cex = 1.2, 
        title = "Methods")
 
-
-#true_labels <- rna_counts_list[["rna_10_3000"]]@variable.annotations[["differential.expression"]]
-#names(true_labels) <- rownames(rna_counts_list[["rna_10_3000"]]@count.matrix)
-
-#p1 <- as.data.frame(processed_results[["2_10_3000"]][["naive_pydeseq"]]$padj)
-#rownames(p1) <- rownames(processed_results[["2_10_3000"]][["naive_pydeseq"]])
-#p2 <- as.data.frame(processed_results[["2_10_3000"]][["naive_edge"]]$padj)
-#rownames(p2) <- rownames(processed_results[["2_10_3000"]][["naive_edge"]])
-#p3 <- as.data.frame(processed_results[["2_10_3000"]][["aware_edge"]]$padj)
-#rownames(p3) <- rownames(processed_results[["2_10_3000"]][["aware_edge"]])
-#p4 <- as.data.frame(processed_results[["2_10_3000"]][["aware_pydeseq"]]$padj)
-#rownames(p4) <- rownames(processed_results[["2_10_3000"]][["aware_pydeseq"]])
-
-#common_genes <- Reduce(intersect, list(rownames(p1), rownames(p2), rownames(p3), rownames(p4)))
-#true_labels <- true_labels[common_genes]
-
-#p1 <- as.data.frame(p1[common_genes,]) 
-#p2 <- as.data.frame(p2[common_genes,]) 
-#p3 <- as.data.frame(p3[common_genes,]) 
-#p4 <- as.data.frame(p4[common_genes,]) 
-
-#p_values <- cbind(p1, p2, p3, p4)
-#rownames(p_values) <- names(true_labels)
-#colnames(p_values) <- c("PyDESeq2", "EdgeR", "ABCD-DNA", "DeConveil")
-
-#roc <- auROC(
-  #truth = true_labels, 
-  #p = p_values, 
-  #sig = 0.05, 
-  #x = "fpr", 
-  #y = "tpr")
 

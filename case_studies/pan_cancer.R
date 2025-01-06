@@ -8,8 +8,8 @@ source("deconveilCaseStudies/utils.R")
 
 # Data preprocessing
 
-tumor_types <- c("LUAD", "LUSC", "BRCA", "LIHC")
-tumor_types <- c("LIHC")
+tumor_types <- c("LUAD", "LUSC", "BRCA", "LIHC") #Pan-cancer test
+tumor_types <- c("BRCA")
 
 base_paths <- list(
   res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
@@ -94,6 +94,8 @@ define_gene_groups <- function(res_joint) {
 
 gene_groups <- define_gene_groups(res_joint)
 
+#saveRDS(gene_groups, file = "TCGA/BRCA/case_study/gene_groups_brca.RDS")
+
 prepare_cn_specific_data <- function(df, gene_group_name) {
   df %>%
     mutate(gene_group = gene_group_name) %>%
@@ -126,11 +128,16 @@ cn_aware_d_compensated <- extract_genes(gene_groups$d_compensated, "Dosage-compe
 #names(gene_groups_join) <- c("d_sensitive", "d_insensitive", "d_compensated")
 #saveRDS(gene_groups_join, file = "TCGA/BRCA/case_study/gene_groups.RDS")
 
-upset_data <- cn_aware_d_compensated %>%
+upset_data <- cn_aware_d_sensitive %>%
   mutate(present = 1) %>%
   pivot_wider(names_from = tumor_type, values_from = present, values_fill = 0) %>%
   select(-gene_group) %>%
   distinct()
+
+common_genes <- upset_data %>%
+  filter(LUAD == 1, LUSC == 1, BRCA == 1, LIHC == 1) %>% 
+  pull(geneID)
+common_genes
 
 upset_data <- upset_data %>% select(-geneID)
 upset_data <- upset_data %>%
@@ -396,81 +403,5 @@ plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
 plot_GO
 
 ggsave("deconveilCaseStudies/plots/main/GO_dotplot_pancancer.png", dpi = 400, width = 22.0, height = 5.0, plot = plot_GO)
-
-  
-#p_data <- rbind(res_GO_d_sensitive, res_GO_d_compensated, res_GO_d_insensitive)
-#p_data$gene_group <- as.factor(p_data$gene_group)
-#p_data <- p_data %>%
-  #group_by(gene_group) %>%
-  #arrange(GeneRatio_val, .by_group = TRUE) %>%
-  #ungroup()
-#p_data$Description <- factor(p_data$Description, levels = unique(p_data$Description))
-#gene_group_colors = c("Dosage-sensitive" = "#FF7F0E", "Dosage-compensated" = "#f9a729", "Dosage-insensitive" = "#8F3931FF")
-
-#p_gse <- ggplot(p_data, aes(x = GeneRatio_val, y = Description)) +
-  #geom_point(aes(size = Count, color = log_padjust))+
-  #scale_color_gradient(low = "blue", high = "orange")+
-  #labs(x = "gene ratio", y = "", title = "",
-       #color = "padj (log10)",  
-       #size = "Gene count"           
-  #)+
-  #facet_wrap(~factor(gene_group, levels = c("Dosage-sensitive", "Dosage-insensitive", "Dosage-compensated")), nrow = 1)+
-  #theme(strip.text.x = element_text(size=10, color="black", face="bold.italic"))+
-  #theme_bw()+
-  #theme(legend.position = "right")+
-  #scale_x_continuous(limits = c(0, 0.07))+
-  #theme(axis.text.y = element_text(color = gene_group_colors[p_data$gene_group]))+
-  #theme(axis.text.x = element_text(size = 16, color = "black"),  
-        #axis.text.y = element_text(size = 16, color = "black"),
-        #legend.key.size = unit(0.6, "cm"), 
-        #legend.text = element_text(size = 14, color = "black"),
-        #legend.title = element_text(size = 16, color = "black"),
-        #legend.spacing.y = unit(0.2, 'cm'),
-        #strip.text = element_text(size = 18, face = "plain", color = "black"),
-        #axis.text = element_text(size = 14, color = "black"),
-        #axis.title = element_text(size = 16)
-  #)
-#p_gse
-#ggsave("CN-aware-DGE/plots/main/GO_dotplot_luad.png", dpi = 400, width = 14.0, height = 6.0, plot = p_gse)
-
-
-# Find specific cancer genes in biological pathways
-#res_GO_d_sensitive$geneSymbol <- sapply(res_GO_d_sensitive$geneID, convert_entrez_to_symbol)
-
-#tumor_specific_luad <- c("CDKN2B", "IRS1", "CDK4", "MET", "ZNF217", "FURIN", "CD74", "FOXA1", "PAK1", "PRKDC", "ESR1", "ACTG1")
-#GO_pathways <- c("fibroblast proliferation", "positive regulation of DNA metabolic process", "tRNA metabolic process",
-                 #"protein folding", "positive regulation of DNA repair")
-
-#res_H_d_sensitive$geneSymbol <- sapply(res_H_d_sensitive$geneID, convert_entrez_to_symbol)
-#H_pathways_d_sensitive <- c("HALLMARK_MYC_TARGETS_V2", "HALLMARK_E2F_TARGETS", "HALLMARK_GLYCOLYSIS", "HALLMARK_G2M_CHECKPOINT")
-#res_H_d_sensitive <- res_H_d_sensitive %>% filter(Description %in% H_pathways_d_sensitive)
-
-#res_H_d_sensitive <- res_H_d_sensitive %>%
-  #separate(GeneRatio, into = c("numerator", "denominator"), sep = "/", convert = TRUE) %>%
-  #mutate(GeneRatio_val = numerator / denominator)
-
-#res_H_d_sensitive$log_padjust <- -log10(res_H_d_sensitive$p.adjust)
-#res_H_d_sensitive$Description <- gsub("HALLMARK", "H", res_H_d_sensitive$Description)
-#res_H_d_sensitive <- res_H_d_sensitive %>% arrange(p.adjust)
-#res_H_d_sensitive$Description <- factor(res_H_d_sensitive$Description, levels = unique(res_H_d_sensitive$Description))
-
-#p_hallmark <- ggplot(res_H_d_sensitive, aes(x = log_padjust, y = Description))+
-  #geom_bar(stat = "identity", fill = "#BF616AFF", width = 0.3) + 
-  #scale_x_continuous() +
-  #scale_y_discrete(expand = expansion(mult = c(0.2, 0.2))) +
-  #labs(title = "", x = "-log10(FDR)", y = "") +
-  #theme_classic() +
-  #theme(axis.text.x = element_text(size = 16, color = "black"),  
-        #axis.text.y = element_text(size = 16, color = "black"),
-        #legend.key.size = unit(0.6, "cm"), 
-        #legend.text = element_text(size = 14, color = "black"),
-        #legend.title = element_text(size = 16, color = "black"),
-        #legend.spacing.y = unit(0.2, 'cm'),
-        #strip.text = element_text(size = 18, face = "plain", color = "black"),
-        #axis.text = element_text(size = 14, color = "black"),
-        #axis.title = element_text(size = 16)
-  #)
-#p_hallmark
-#ggsave("CN-aware-DGE/plots/main/H_barchart_luad.png", dpi = 400, width = 5.0, height = 3.5, plot = p_hallmark)
 
   

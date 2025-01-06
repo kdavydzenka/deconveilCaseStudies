@@ -8,8 +8,8 @@ sapply(pkgs, require, character.only = TRUE)
 
 # Input data
 
-#tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC")
-tumor_type <- c("BRCA")
+tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC")
+#tumor_type <- c("BRCA")
 base_dir <- "TCGA"
 
 cnv_mean_all <- data.frame()
@@ -182,7 +182,7 @@ combine_results <- function(res_naive, res_aware, cnv_tumor, loss_labels) {
 
 # Main analysis pipeline #
 
-tumor_type <- c("BRCA")
+tumor_type <- c("KIRC")
 lfc_cut = 1.0
 pval_cut = 0.05 
 loss_threshold = 0.25
@@ -213,9 +213,9 @@ gene_groups <- list(
              DEtype_naive == "Up-reg" & DEtype_aware == "Up-reg"),
   d_compensated = res_joint %>%
     filter(DEtype_naive == "n.s." & DEtype_aware == "Down-reg" | 
-             DEtype_naive == "n.s." & DEtype_aware == "Up-reg")
-  #non_deg = res_joint %>%
-    #filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
+             DEtype_naive == "n.s." & DEtype_aware == "Up-reg"),
+  non_deg = res_joint %>%
+    filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
 )
 
 
@@ -254,11 +254,11 @@ cn_aware_non_DE <- gene_groups[["non_deg"]] %>% dplyr::select(geneID, logFC_awar
   dplyr::mutate(gene_group = "non-DEGs")
 colnames(cn_aware_non_DE) <- c("geneID", "log2FC", "padj", "isDE", "DEtype", "tumor_type", "method", "cnv_mean", "gene_group")
 
-#cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated, cn_naive_non_DE)
-#cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
+cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated, cn_naive_non_DE)
+cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated, cn_aware_non_DE)
 
-cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated)
-cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
+#cn_naive <- rbind(cn_naive_d_sensitive, cn_naive_d_insensitive, cn_naive_d_compensated)
+#cn_aware <- rbind(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
 
 
 # Volcano plot #
@@ -309,8 +309,8 @@ p_volcanos <- v_plot_data %>%
   theme_bw() +
   scale_x_continuous(breaks = seq(floor(min(v_plot_data$log2FC)), 
                                   ceiling(max(v_plot_data$log2FC)), by = 2)) +
-  ggh4x::facet_nested(factor(method, levels = c("CN naive", "CN aware"))~factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC")), scales ="free", independent = "y")+
-  #facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), nrow = 1) +
+  #ggh4x::facet_nested(factor(method, levels = c("CN naive", "CN aware"))~factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC")), scales ="free", independent = "y")+
+  facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), nrow = 1) +
   labs(x = expression(Log[2] ~ FC), y = expression(-log[10] ~ Pvalue), col = "Gene group") +
   geom_vline(xintercept = c(-lfc_cut, lfc_cut), linetype = 'dashed') +
   geom_hline(yintercept = -log10(pval_cut), linetype = "dashed") +
@@ -421,14 +421,15 @@ plot_lfc <- plot_lfc %>% remove_rownames() %>% column_to_rownames(var = "geneID"
 plot_lfc <- merge(plot_lfc, loss_labels, by = "row.names")
 plot_lfc$cnv_group <- ifelse(plot_lfc$isCNloss == "loss", "loss", plot_lfc$cnv_group)
 
-plot_lfc_luad <- plot_lfc %>% 
+plot_lfc_kirc <- plot_lfc %>% 
   dplyr::mutate(eff_size_diff = abs(log2FC_naive - log2FC_aware)) %>% 
-  dplyr::mutate(tumor_type = "LUAD")
+  dplyr::mutate(tumor_type = "KIRC")
 
 
-plot_lfc <- rbind(plot_lfc_lusc, plot_lfc_brca, plot_lfc_lihc, plot_lfc_kirc)
+plot_lfc <- rbind(plot_lfc_luc, plot_lfc_brca, plot_lfc_lihc, plot_lfc_kirc)
+plot_lfc <- plot_lfc %>% dplyr::filter(abs(log2FC_aware) < 7.0 ,)
 
-comparison_lfc <- ggplot(plot_lfc_luad, aes(x=log2FC_aware, y=log2FC_naive, color = cnv_group)) + 
+comparison_lfc <- ggplot(plot_lfc, aes(x=log2FC_aware, y=log2FC_naive, color = cnv_group)) + 
   geom_point(shape = 20, size = 3)+
   geom_abline()+
   geom_vline(xintercept = 0, linetype="dotted", color="black", size=0.5)+
@@ -437,8 +438,8 @@ comparison_lfc <- ggplot(plot_lfc_luad, aes(x=log2FC_aware, y=log2FC_naive, colo
   ylab ("Effect size (log2) CN-naive") +
   scale_x_continuous(breaks = seq(-10, 10, by = 4))+
   scale_y_continuous(breaks = seq(-10, 10, by = 4))+
-  facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
-  #ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
+  #facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
+  ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
   scale_color_manual(name = "CN group", values = cnv_colors)+
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))+
   theme_bw()+

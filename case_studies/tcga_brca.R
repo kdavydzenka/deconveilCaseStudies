@@ -1,6 +1,6 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 
-pkgs <- c("tidyverse", "circlize", "RColorBrewer", "org.Hs.eg.db")
+pkgs <- c("tidyverse", "circlize", "RColorBrewer", "org.Hs.eg.db", "ggrepel")
 sapply(pkgs, require, character.only = TRUE)
 source("deconveilCaseStudies/utils.R")
 
@@ -132,6 +132,64 @@ legend("bottom",
 
 
 
+# Volcano plot of prognostic genes
 
+gene_groups <- readRDS("TCGA/BRCA/case_study/gene_groups_brca.RDS")
 
+extract_genes <- function(gene_group_df, gene_group_name) {
+  gene_group_df %>%
+    mutate(gene_group = gene_group_name) %>%
+    select(geneID = geneID_aware, tumor_type = tumor_type_aware, logFC_aware, padj_aware, gene_group)
+}
 
+d_sensitive_aware <- extract_genes(gene_groups$d_sensitive, "DSGs")
+d_insensitive_aware <- extract_genes(gene_groups$d_insensitive, "DIGs")
+d_compensated_aware <- extract_genes(gene_groups$d_compensated, "DCGs")
+
+d_compensated_aware <- d_compensated_aware %>% dplyr::filter(abs(logFC_aware) < 6.0 ,)
+
+gene_group_colors <- c("DIGs" = "#8F3931FF", "DSGs" = "#FFB977", "DCGs"="#FAE48BFF", "non-DEG" = "#ADB6B6FF")  
+lfc_cut <- 1.0
+pval_cut <- 0.05
+
+DSGs <- prognostic_genes[["Dosage-sensitive"]]
+DIGs <- prognostic_genes[["Dosage-insensitive"]]
+DCGs <- prognostic_genes[["Dosage-compensated"]]
+
+p_volcanos <- d_compensated_aware %>%
+  ggplot(mapping = aes(x = logFC_aware, y = -log10(padj_aware))) +
+  geom_point(aes(col = gene_group), size = 2.0, alpha = 0.5) +
+  scale_color_manual(values = gene_group_colors) +
+  geom_label_repel(
+    data = d_compensated_aware %>% filter(geneID %in% DCGs),
+    aes(label = geneID),
+    size = 4.0,               
+    fontface = "bold",        
+    color = "white",          
+    fill = "#1B1919B2",       
+    box.padding = 0.8,        
+    point.padding = 0.5,      
+    max.overlaps = Inf,       
+    segment.color = "black", 
+    segment.size = 0.5,       
+    label.padding = unit(0.15, "lines"), 
+    label.r = unit(0.4, "lines"),       
+    min.segment.length = 0    
+  ) +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(floor(min(d_compensated_aware$logFC_aware)), 
+                                  ceiling(max(d_compensated_aware$logFC_aware)), by = 2)) +
+  labs(x = expression(Log[2] ~ FC), y = expression(-log[10] ~ Pvalue), col = "Gene group") +
+  geom_vline(xintercept = c(-lfc_cut, lfc_cut), linetype = 'dashed') +
+  geom_hline(yintercept = -log10(pval_cut), linetype = "dashed") +
+  ggplot2::theme(legend.position = '',
+                 legend.text = element_text(size = 14, color = "black"),
+                 legend.title = element_text(size = 16, color = "black"),  
+                 strip.text = element_text(size = 16, face = "plain", color = "black"),
+                 axis.text = element_text(size = 14, color = "black"),
+                 axis.title = element_text(size = 16))+
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
+
+p_volcanos
+
+ggsave("deconveilCaseStudies/plots/supplementary/volcano_dcg_brca.png", dpi = 400, width = 5.0, height = 5.0, plot = p_volcanos)
