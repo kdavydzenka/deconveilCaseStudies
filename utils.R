@@ -497,3 +497,27 @@ convert_entrez_to_symbol <- function(entrez_ids) {
   gene_symbols <- mapIds(org.Hs.eg.db, entrez_list, "SYMBOL", "ENTREZID")
   return(paste(gene_symbols, collapse = ", "))
 }
+
+
+define_gene_groups <- function(res_joint) {
+  list(
+    d_sensitive = res_joint %>%
+      filter(
+        (DEtype_naive == "Up-reg" & DEtype_aware == "n.s.") |
+          (DEtype_naive == "Down-reg" & DEtype_aware == "n.s.")
+      ),
+    d_insensitive = res_joint %>%
+      filter(
+        (DEtype_naive == "Up-reg" & DEtype_aware == "Up-reg") |
+          (DEtype_naive == "Down-reg" & DEtype_aware == "Down-reg")
+      ),
+    d_compensated = res_joint %>%
+      filter(
+        (DEtype_naive == "n.s." & DEtype_aware == "Up-reg") |
+          (DEtype_naive == "n.s." & DEtype_aware == "Down-reg")
+      ),
+    non_deg = res_joint %>%
+      filter(DEtype_naive == "n.s." & DEtype_aware == "n.s.")
+  )
+}
+
