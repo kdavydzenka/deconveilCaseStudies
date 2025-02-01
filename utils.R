@@ -521,3 +521,61 @@ define_gene_groups <- function(res_joint) {
   )
 }
 
+
+classify_cn <- function(cn_value) {
+  if (cn_value == 0 || cn_value == 1) {
+    return("Loss")
+  } else if (cn_value == 2) {
+    return("Neutral")
+  } else if (cn_value == 3 || cn_value == 4) {
+    return("Gain")
+  } else if (cn_value > 4) {
+    return("Amplification")
+  } else {
+    return(NA)  
+  }
+}
+
+
+process_cnv_data <- function(cnv_tumor, loss_threshold = 0.25) {
+  cn_categories <- apply(cnv_tumor, c(1, 2), classify_cn)
+  loss_proportion <- apply(cn_categories, 1, function(x) mean(x == "Loss"))
+  loss_labels <- data.frame(
+    loss_proportion = loss_proportion,
+    isCNloss = ifelse(loss_proportion > loss_threshold, "loss", "not loss")
+  )
+  return(list(cn_categories = cn_categories, loss_labels = loss_labels))
+}
+
+
+annotate_results <- function(results, lfc_cut, pval_cut, method, tumor_type) {
+  results %>%
+    mutate(
+      isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut),
+      DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg")),
+      method = method,
+      tumor_type = tumor_type
+    ) %>%
+    remove_rownames() %>%
+    column_to_rownames(var = "X")
+}
+
+
+combine_results <- function(res_naive, res_aware, cnv_tumor, loss_labels) {
+  loss_labels <- loss_labels %>% 
+    dplyr::mutate(geneID = rownames(loss_labels))
+  cnv_mean <- cnv_tumor %>%
+    dplyr::mutate(geneID = rownames(cnv_tumor),
+                  cnv_mean = rowMeans(cnv_tumor)) %>%
+    dplyr::select(geneID, cnv_mean) %>%
+    left_join(loss_labels, by = "geneID") %>%
+    mutate(cnv_group = case_when(
+      cnv_mean > 0 & cnv_mean <= 1.7  ~ "loss",
+      cnv_mean > 1.7 & cnv_mean <= 2.5  ~ "neutral",
+      cnv_mean > 2.5 & cnv_mean <= 4.0 ~ "gain",
+      cnv_mean > 4.0 ~ "amplification"
+    ))
+  
+  list(res_naive = cbind(res_naive, cnv_mean), 
+       res_aware = cbind(res_aware, cnv_mean))
+}
