@@ -6,9 +6,9 @@ pkgs <- c("tidyverse", "survival", "glmnet", "survminer", "survcomp", "DESeq2", 
 sapply(pkgs, require, character.only = TRUE)
 
 # Load data
-gene_groups_CNaware <- readRDS("TCGA/BRCA/case_study/gene_groups.RDS")
+gene_groups_CNaware <- readRDS("deconveilCaseStudies/results/case_studies/BRCA/survival/gene_groups.RDS")
 res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
-clinical_data <- readRDS("TCGA/brca/clinical_full.RDS")
+clinical_data <- readRDS("TCGA/BRCA/clinical_full.RDS")
 rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
 cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
 
@@ -117,8 +117,10 @@ for (gene in colnames(rna)) {
 
 significant_genes <- cox_results %>% filter(p.value < 0.05)
 
-saveRDS(significant_genes, file = "TCGA/BRCA/case_study/significant_genes_ds.RDS")
-saveRDS(significant_genes, file = "TCGA/BRCA/case_study/significant_genes_CNnaive.RDS")
+saveRDS(significant_genes, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/significant_genes_ds.RDS")
+saveRDS(significant_genes, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/significant_genes_dins.RDS")
+saveRDS(significant_genes, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/significant_genes_dcomp.RDS")
+saveRDS(significant_genes, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/significant_genes_CNnaive.RDS")
 
 
 # The Hazard Ratio (HR) and confidence intervals (CI) give an indication of the prognostic impact of each gene. 
@@ -158,7 +160,12 @@ surv_fit <- survfit(Surv(time, event) ~ risk_group, data = clinical)
 
 sel_genes_data <- significant_genes %>% dplyr::filter(Gene %in% c(selected_genes))
 
-saveRDS(sel_genes_data, file = "TCGA/BRCA/case_study/prognostic_signature_CNnaive.RDS")
+saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/prognostic_signature_CNnaive.RDS")
+saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/prognostic_signature_ds.RDS")
+saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dins.RDS")
+saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dcomp.RDS")
+
+
 
 plot_data <- sel_genes_data %>%
   mutate(
@@ -210,10 +217,10 @@ grid.arrange(forest_plot, table_plot, ncol = 2, widths = c(1, 2))
 
 ### Perform prognostic model validation using external cohort METABRIC ###
 
-# Data preprocessin
-rna_metabric <- read_delim("brca_metabric/data_mrna_illumina_microarray.txt")
-cn_metabric <- read_delim("brca_metabric/data_cna.txt")
-clinical_metabric <- read_delim("brca_metabric/data_clinical_patient.txt")
+# Data preprocessing
+rna_metabric <- read_delim("TCGA/brca_metabric/data_mrna_illumina_microarray.txt")
+cn_metabric <- read_delim("TCGA/brca_metabric/data_cna.txt")
+clinical_metabric <- read_delim("TCGA/brca_metabric/data_clinical_patient.txt")
 
 rna_metabric <- rna_metabric[!duplicated(rna_metabric$Hugo_Symbol), ]
 rna_metabric <- rna_metabric %>% dplyr::select(-Entrez_Gene_Id) %>% 
@@ -224,9 +231,8 @@ cn_metabric <- cn_metabric %>% dplyr::select(-Entrez_Gene_Id) %>%
   remove_rownames() %>% column_to_rownames(var = "Hugo_Symbol")
 
 clinical_metabric <- clinical_metabric[-c(1:4),]
-#clinical_metabric <- clinical_metabric[clinical_metabric$Cohort == 6,]
-#clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ]
-clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ] # DSGs, DIGs, DCGs
+clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(4,5), ]
+#clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ] # DSGs, DIGs, DCGs
 clinical_metabric <- clinical_metabric %>% dplyr::select("#Patient Identifier", "Overall Survival (Months)", "Overall Survival Status")
 colnames(clinical_metabric) <- c("patientID", "time", "event")
 clinical_metabric$time <- as.numeric(clinical_metabric$time)

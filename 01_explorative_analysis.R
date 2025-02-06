@@ -55,7 +55,7 @@ cnv_mean$geneID <- rownames(cnv_mean)
 
 ## Input data RNA ##
 
-data_path <- "TCGA/lung/LUAD/rna_counts.RDS"
+data_path <- "TCGA/LUAD/rna_counts.RDS"
 dataset_name <- "LUAD_rna"
 
 rna <- rna_processing(dataset_name, data_path, cnv_filt)
