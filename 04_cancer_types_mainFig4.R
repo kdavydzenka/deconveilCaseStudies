@@ -270,9 +270,18 @@ for (tumor in tumor_types) {
   oraGO_pancancer[[tumor]] <- readRDS(file_path)
 }
 
-dig_luad <- as.data.frame(oraGO_pancancer[["luad"]][["Dosage-compensated"]])
-dig_lusc <- as.data.frame(oraGO_pancancer[["lusc"]][["Dosage-compensated"]])
-dig_brca <- as.data.frame(oraGO_pancancer[["brca"]][["Dosage-compensated"]])
+
+dsg_luad <- as.data.frame(oraGO_pancancer[["luad"]][["Dosage-sensitive"]])
+dsg_lusc <- as.data.frame(oraGO_pancancer[["lusc"]][["Dosage-sensitive"]])
+dsg_brca <- as.data.frame(oraGO_pancancer[["brca"]][["Dosage-sensitive"]])
+
+dig_luad <- as.data.frame(oraGO_pancancer[["luad"]][["Dosage-insensitive"]])
+dig_lusc <- as.data.frame(oraGO_pancancer[["lusc"]][["Dosage-insensitive"]])
+dig_brca <- as.data.frame(oraGO_pancancer[["brca"]][["Dosage-insensitive"]])
+
+dcg_luad <- as.data.frame(oraGO_pancancer[["luad"]][["Dosage-compensated"]])
+dcg_lusc <- as.data.frame(oraGO_pancancer[["lusc"]][["Dosage-compensated"]])
+dcg_brca <- as.data.frame(oraGO_pancancer[["brca"]][["Dosage-compensated"]])
 
 
 # Private cancer-relevant specific pathways
@@ -280,19 +289,24 @@ dig_brca <- as.data.frame(oraGO_pancancer[["brca"]][["Dosage-compensated"]])
 GO_terms <- list(
   luad = list(
     'Dosage-sensitive' = c("fibroblast proliferation",
-                           "chaperone-mediated protein folding"),
+                           "chaperone-mediated protein folding",
+                           "recombinational repair"),
     
-    'Dosage-insensitive' = c("immunoglobulin mediated immune response",
-                             "reactive oxygen species metabolic process"),
+    'Dosage-insensitive' = c("immunoglobulin production",
+                             "B cell mediated immunity",
+                             "regulation of mitotic nuclear division"),
     
     'Dosage-compensated' = c("MHC protein complex assembly",
-                             "positive regulation of T cell activation")
+                             "positive regulation of T cell activation",
+                             "negative regulation of kinase activity")
   ),
   lusc = list(
     'Dosage-sensitive' = c("ribosome biogenesis",
-                           "RNA localization to Cajal body"),
+                           "epithelial tube formation",
+                           "cellular response to interferon-beta"),
     
     'Dosage-insensitive' = c("mesenchymal cell differentiation",
+                             "neutrophil chemotaxis",
                              "morphogenesis of a branching epithelium"),
     
     'Dosage-compensated' = c("negative regulation of cytokine production involved in immune response",
@@ -303,12 +317,16 @@ GO_terms <- list(
                            "positive regulation of T cell mediated cytotoxicity"),
     
     'Dosage-insensitive' = c("hormone metabolic process",
-                             "positive regulation of monoatomic ion transport"),
+                             "calcium ion transmembrane import into cytosol",
+                             "striated muscle cell development"),
     
     'Dosage-compensated' = c("striated muscle tissue development",
-                             "hormone metabolic process")
+                             "hormone metabolic process",
+                             "positive regulation of insulin secretion")
   )
 )
+
+
 
 # Shared genes relevant cancer-specific pathways
 
@@ -442,6 +460,13 @@ dotplot_data <- dotplot_data %>%
                    brca = "BRCA")
   )
 
+dotplot_data <- dotplot_data %>%
+  group_by(Category, Description) %>%
+  mutate(order = match(Tumor, c("BRCA", "LUAD", "LUSC"))) %>%
+  ungroup() %>%
+  arrange(Category, order) %>%
+  mutate(Description = factor(Description, levels = unique(Description)))
+
 
 split_in_two_lines <- function(text) {
   words <- strsplit(text, " ")[[1]]  # Split text into words
@@ -450,6 +475,8 @@ split_in_two_lines <- function(text) {
 }
 
 dotplot_data$Description <- sapply(dotplot_data$Description, split_in_two_lines)
+#dotplot_data$Description <- factor(dotplot_data$Description)
+#dotplot_data$Tumor <- factor(dotplot_data$Tumor, levels = c("BRCA", "LUAD", "LUSC"))
 
 plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
   geom_point(aes(size = Count, color = log_padjust)) +
@@ -477,5 +504,5 @@ plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
 plot_GO
 
 ggsave("deconveilCaseStudies/plots/main/GOdotplot_pancancer.png", dpi = 400, width = 18.0, height = 6.0, plot = plot_GO)
-
+ggsave("deconveilCaseStudies/plots/supplementary/GOdotplot_pancancer_private.png", dpi = 400, width = 24.0, height = 6.0, plot = plot_GO)
 
