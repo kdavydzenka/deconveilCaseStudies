@@ -77,7 +77,6 @@ prepare_cn_specific_data <- function(df, gene_group_name) {
 }
 
 
-
 # Plot genes overlap
 
 extract_genes <- function(gene_group_df, gene_group_name) {
@@ -327,7 +326,6 @@ GO_terms <- list(
 )
 
 
-
 # Shared genes relevant cancer-specific pathways
 
 GO_terms <- list(
@@ -475,8 +473,7 @@ split_in_two_lines <- function(text) {
 }
 
 dotplot_data$Description <- sapply(dotplot_data$Description, split_in_two_lines)
-#dotplot_data$Description <- factor(dotplot_data$Description)
-#dotplot_data$Tumor <- factor(dotplot_data$Tumor, levels = c("BRCA", "LUAD", "LUSC"))
+
 
 plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
   geom_point(aes(size = Count, color = log_padjust)) +
@@ -504,5 +501,5 @@ plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
 plot_GO
 
 ggsave("deconveilCaseStudies/plots/main/GOdotplot_pancancer.png", dpi = 400, width = 18.0, height = 6.0, plot = plot_GO)
-ggsave("deconveilCaseStudies/plots/supplementary/GOdotplot_pancancer_private.png", dpi = 400, width = 24.0, height = 6.0, plot = plot_GO)
+ggsave("deconveilCaseStudies/plots/supplementary/GOdotplot_pancancer_private.png", dpi = 400, width = 24.0, height = 5.0, plot = plot_GO)
 

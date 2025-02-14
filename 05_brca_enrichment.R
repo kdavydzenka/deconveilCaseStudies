@@ -11,7 +11,7 @@ source("deconveilCaseStudies/utils.R")
 
 # Load ORA results and extract components
 
-ora_GO <- readRDS("deconveilCaseStudies/results/pancancer_ora_GO/brca.RDS")
+ora_GO <- readRDS("deconveilCaseStudies/results/oraGO_cancer_types/brca.RDS")
 
 go_categories <- c("Dosage-sensitive", "Dosage-insensitive", "Dosage-compensated")
 
@@ -24,6 +24,8 @@ convert_to_dataframe <- function(category) {
 ora_GO_data <- lapply(go_categories, convert_to_dataframe)
 names(ora_GO_data) <- go_categories
 
+dcomp <- ora_GO_data[["Dosage-compensated"]]
+
 # Define GO terms for filtering
 go_terms <- list(
   "Dosage-sensitive" = c("exocytosis", "regulation of DNA replication", "production of molecular mediator of immune response",
@@ -32,9 +34,8 @@ go_terms <- list(
                            "myeloid leukocyte activation", "immunoglobulin mediated immune response",
                            "hormone metabolic process", "positive regulation of protein kinase activity",
                            "cAMP-mediated signaling", "response to lipopolysaccharide"),
-  "Dosage-compensated" = c("regulation of muscle system process", "regulation of insulin secretion", "positive regulation of epithelial cell migration",
-                           "cell-matrix adhesion", "cellular response to salt", "phagocytosis", "positive regulation of epithelial cell proliferation",
-                           "mesenchymal cell differentiation")
+  "Dosage-compensated" = c("regulation of muscle system process", "regulation of insulin secretion", "adenylate cyclase-modulating G protein-coupled receptor signaling pathway",
+                           "cellular response to salt")
 )
 
 # Filter GO results based on terms
@@ -52,9 +53,9 @@ data_long$gene <- trimws(data_long$gene)
 
 # Load prognostic genes and filter relevant data
 prognostic_files <- list(
-  "Dosage-sensitive" = "TCGA/BRCA/case_study/prognostic_signature_ds.RDS",
-  "Dosage-insensitive" = "TCGA/BRCA/case_study/prognostic_signature_dins.RDS",
-  "Dosage-compensated" = "TCGA/BRCA/case_study/prognostic_signature_dcomp.RDS"
+  "Dosage-sensitive" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_ds.RDS",
+  "Dosage-insensitive" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dins.RDS",
+  "Dosage-compensated" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dcomp.RDS"
 )
 
 prognostic_genes <- lapply(prognostic_files, function(file) {

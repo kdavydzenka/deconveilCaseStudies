@@ -7,7 +7,7 @@ sapply(pkgs, require, character.only = TRUE)
 
 # Load data
 gene_groups_CNaware <- readRDS("deconveilCaseStudies/results/case_studies/BRCA/survival/gene_groups.RDS")
-res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
+#res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
 clinical_data <- readRDS("TCGA/BRCA/clinical_full.RDS")
 rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
 cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
@@ -19,32 +19,32 @@ clinical_data <- clinical_data[clinical_data$bcr_patient_barcode %in% colnames(r
 rna_tumor <- rna_tumor[,(colnames(rna_tumor) %in% clinical_data$bcr_patient_barcode)]
 
 clinical_data <- clinical_data %>% 
-  dplyr::select(bcr_patient_barcode, days_to_death, days_to_last_followup, stage_event_pathologic_stage)
+  dplyr::select(bcr_patient_barcode, days_to_death, days_to_last_followup)
 clinical_data$event <- ifelse(!is.na(clinical_data$days_to_death), 1, 0)
 clinical_data$time <- ifelse(!is.na(clinical_data$days_to_death), 
                              clinical_data$days_to_death, 
                              clinical_data$days_to_last_followup)
 
 clinical_data <- clinical_data %>%
-  dplyr::select(bcr_patient_barcode, time, event, stage_event_pathologic_stage) %>%   
+  dplyr::select(bcr_patient_barcode, time, event) %>%   
   drop_na() 
-colnames(clinical_data) <- c("patientID", "time", "event", "stage")
+colnames(clinical_data) <- c("patientID", "time", "event")
 
-clinical_data <- clinical_data %>%
-  mutate(
-    stage = case_when(
-      stage == "Stage IA" ~ "I",
-      stage == "Stage IIA" ~ "II",
-      stage == "Stage IIB" ~ "II",
-      stage == "Stage IIIA" ~ "III",
-      stage == "Stage IIIB" ~ "III",
-      stage == "Stage IIIC" ~ "III",
-      stage == "Stage IVC" ~ "IV",
-      TRUE ~ stage
-    )
-  )
+#clinical_data <- clinical_data %>%
+  #mutate(
+    #stage = case_when(
+      #stage == "Stage IA" ~ "I",
+      #stage == "Stage IIA" ~ "II",
+      #stage == "Stage IIB" ~ "II",
+      #stage == "Stage IIIA" ~ "III",
+      #stage == "Stage IIIB" ~ "III",
+      #stage == "Stage IIIC" ~ "III",
+      #stage == "Stage IVC" ~ "IV",
+      #TRUE ~ stage
+    #)
+  #)
 
-clinical_data$stage <- factor(clinical_data$stage, levels = c("I", "II", "III"))
+#clinical_data$stage <- factor(clinical_data$stage, levels = c("I", "II", "III"))
 
 # CN-aware results
 rna_ds <- rna_tumor[(rownames(rna_tumor) %in% gene_groups_CNaware[["d_sensitive"]]$geneID),]
@@ -76,6 +76,8 @@ rna_CNnaive <- rna_tumor[(rownames(rna_tumor) %in% res_naive_deg$geneID),]
 
 # GE normalization 
 rna_log_norm<- rna_dcomp %>% as.matrix() %>% DESeq2::varianceStabilizingTransformation()
+
+# CN normalization
 cnv_tumor <- cnv_tumor[(rownames(cnv_tumor) %in% rownames(rna_log_norm)) ,]
 cnv_tumor <- cnv_tumor[,(colnames(cnv_tumor) %in% colnames(rna_log_norm)) ]
 cnv_tumor <- apply(cnv_tumor, 2, function(x) ifelse(x > 10, 10, x))
@@ -90,8 +92,8 @@ rna_log_norm <- t(rna_log_norm)
 clinical_data <- clinical_data %>% remove_rownames %>% column_to_rownames(var="patientID") 
 data <- cbind(clinical_data, rna_log_norm)
 
-rna <- data %>% select(-time, -event, -stage)
-clinical <- data %>% select(time, event, stage)
+rna <- data %>% dplyr::select(-time, -event)
+clinical <- data %>% dplyr::select(time, event)
 
 
 ## Initial Gene Selection Using Cox Proportional Hazards Model ##
@@ -102,7 +104,7 @@ cox_results <- data.frame(Gene = character(), p.value = numeric(), HR = numeric(
 #tumor_stage_results <- data.frame(Stage = character(), HR = numeric(), CI_lower = numeric(), CI_upper = numeric(), p.value = numeric())
 
 for (gene in colnames(rna)) {
-  cox_model <- coxph(surv_object ~ rna[, gene] + stage, data = data)
+  cox_model <- coxph(surv_object ~ rna[, gene], data = data)
   summary_cox <- summary(cox_model)
   
   cox_results <- rbind(cox_results, data.frame(
@@ -129,6 +131,7 @@ saveRDS(significant_genes, file = "deconveilCaseStudies/results/case_studies/BRC
 # Build Gene Prognostic Signature Using Lasso Regression (selects the most important genes and avoids overfitting) 
 
 # LASSO for further gene selection
+#significant_genes <- significant_genes_CNnaive
 X <- as.matrix(rna[, significant_genes$Gene])  
 y <- surv_object  
 cv_model <- cv.glmnet(X, y, family = "cox", alpha = 1)
@@ -166,7 +169,6 @@ saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/s
 saveRDS(sel_genes_data, file = "deconveilCaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dcomp.RDS")
 
 
-
 plot_data <- sel_genes_data %>%
   mutate(
     gene = factor(Gene, levels = rev(Gene)),  
@@ -195,8 +197,12 @@ forest_plot <- ggplot(plot_data, aes(x = HR, y = gene)) +
   scale_color_identity() +
   #scale_color_manual(values = custom_colors)+
   coord_cartesian(xlim = c(min(plot_data$CI_lower), max(plot_data$CI_upper))) +
-  scale_x_continuous(trans = "identity")
+  scale_x_continuous(trans = "identity") 
 forest_plot
+
+ggsave("deconveilCaseStudies/plots/main/hr_dsg.png", dpi = 400, width = 4.5, height = 5.0, plot = forest_plot)
+ggsave("deconveilCaseStudies/plots/main/hr_dcg.png", dpi = 400, width = 4.5, height = 5.0, plot = forest_plot)
+ggsave("deconveilCaseStudies/plots/main/hr_pydeseq.png", dpi = 400, width = 4.5, height = 5.0, plot = forest_plot)
 
 # Create text table for gene labels, HR, and p-values (mimicking table_text)
 table_text <- plot_data %>%
@@ -231,8 +237,7 @@ cn_metabric <- cn_metabric %>% dplyr::select(-Entrez_Gene_Id) %>%
   remove_rownames() %>% column_to_rownames(var = "Hugo_Symbol")
 
 clinical_metabric <- clinical_metabric[-c(1:4),]
-clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(4,5), ]
-#clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1,4,5), ] # DSGs, DIGs, DCGs
+clinical_metabric <- clinical_metabric[clinical_metabric$Cohort %in% c(1), ]
 clinical_metabric <- clinical_metabric %>% dplyr::select("#Patient Identifier", "Overall Survival (Months)", "Overall Survival Status")
 colnames(clinical_metabric) <- c("patientID", "time", "event")
 clinical_metabric$time <- as.numeric(clinical_metabric$time)
@@ -281,7 +286,7 @@ cn_metabric_dcomp <- cn_metabric_dcomp[,(colnames(cn_metabric_dcomp) %in% colnam
 idx <- match(colnames(rna_metabric_dcomp), colnames(cn_metabric_dcomp))
 cn_metabric_dcomp <- cn_metabric_dcomp[,idx]
 
-rna_metabric_comp <- rna_metabric_dcomp * cn_metabric_dcomp
+rna_metabric_dcomp <- rna_metabric_dcomp * cn_metabric_dcomp
 rna_metabric_dcomp <- t(rna_metabric_dcomp)
 rna_metabric_dcomp <- rna_metabric_dcomp %>% 
   as.data.frame() %>% 
@@ -291,16 +296,18 @@ metabric_combined <- merge(clinical_metabric, rna_metabric_dcomp, by = "patientI
 
 
 # CN-naive
-rna_metabric_CNnaive <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_CNnaive)),]
-rna_metabric_CNnaive <- t(rna_metabric_CNnaive)
-rna_metabric_CNnaive <- rna_metabric_CNnaive %>% 
+rna_metabric_naive <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_CNnaive)),]
+rna_metabric_naive <- t(rna_metabric_naive)
+rna_metabric_naive <- rna_metabric_naive %>% 
   as.data.frame() %>% 
-  dplyr::mutate(patientID = rownames(rna_metabric_CNnaive))
+  dplyr::mutate(patientID = rownames(rna_metabric_naive))
 
-metabric_combined <- merge(clinical_metabric, rna_metabric_CNnaive, by = "patientID")
+metabric_combined <- merge(clinical_metabric, rna_metabric_naive, by = "patientID")
 
 
 # Ensure Matching Gene Names
+#selected_genes <- c(prognostic_signature_CNnaive$Gene)
+
 genes_in_lasso <- selected_genes
 genes_in_metabric <- colnames(metabric_combined)
 matching_genes <- intersect(genes_in_lasso, genes_in_metabric)
@@ -377,7 +384,7 @@ print(paste("C-index:", cindex_cox_tcga$concordance))
 
 # METABRIC #
 clinical_metabric <- clinical_metabric %>% remove_rownames() %>% column_to_rownames("patientID")
-rna_metabric <- rna_metabric_CNnaive
+rna_metabric <- rna_metabric_dcomp
 
 matching_genes <- intersect(selected_genes, colnames(rna_metabric))
 rna_metabric_selected <- rna_metabric[,matching_genes]

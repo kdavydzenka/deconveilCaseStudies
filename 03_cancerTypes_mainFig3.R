@@ -9,7 +9,7 @@ source("deconveilCaseStudies/utils.R")
 
 # Input data
 tumor_type <- c("LUAD")
-tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC") # For Supplementary
+tumor_types <- c("LUSC", "BRCA", "LIHC", "KIRC") # For Supplementary
 base_dir <- "TCGA"
 
 cnv_mean_all <- data.frame()
@@ -119,8 +119,8 @@ read_data <- function(tumor_type) {
 
 # Main analysis pipeline #
 
-tumor_type <- c("LUAD") # Main
-tumor_type <- c("LUSC", "BRCA", "LIHC", "KIRC") # Supplementary
+tumor_types <- c("LUAD") # Main
+tumor_types <- c("LUSC", "BRCA", "LIHC", "KIRC") # Supplementary
 lfc_cut = 1.0
 pval_cut = 0.05 
 loss_threshold = 0.25
@@ -211,6 +211,10 @@ v_plot_data_all$gene_group <- as.factor(v_plot_data_all$gene_group)
 gene_group_colors <- c("DIGs" = "#8F3931FF", "DSGs" = "#FFB977", "DCGs"="#FAE48BFF", "non-DEGs" = "#ADB6B6FF")  
 cnv_colors <- c("loss" = "#0073C299", "neutral" = "#86868699", "gain" = "#cecb76", "amplification" = "#DC0000B2")
 
+v_plot_data_all$method <- factor(v_plot_data_all$method, 
+                           levels = c("CN naive", "CN aware"),
+                           labels = c("PyDESeq2", "DeConveil"))
+
 p_volcanos <- v_plot_data_all %>%
   ggplot(mapping = aes(x = log2FC, y = -log10(padj))) +
   geom_point(data = subset(v_plot_data_all, gene_group %in% c("DIGs", "non-DEGs")),
@@ -221,8 +225,12 @@ p_volcanos <- v_plot_data_all %>%
   theme_bw() +
   scale_x_continuous(breaks = seq(floor(min(v_plot_data_all$log2FC)), 
                                   ceiling(max(v_plot_data_all$log2FC)), by = 2)) +
-  #ggh4x::facet_nested(factor(method, levels = c("CN naive", "CN aware"))~factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC")), scales ="free", independent = "y")+
-  facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), nrow = 1) +
+  ggh4x::facet_nested(factor(method, levels = c("PyDESeq2", "DeConveil"))
+                      ~factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC")), 
+                      scales ="free", independent = "y")+
+  #facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), 
+             #nrow = 1, 
+             #labeller = as_labeller(c("CN naive" = "PyDESeq2", "CN aware" = "DeConveil"))) +
   labs(x = expression(Log[2] ~ FC), y = expression(-log[10] ~ Pvalue), col = "Gene group") +
   geom_vline(xintercept = c(-lfc_cut, lfc_cut), linetype = 'dashed') +
   geom_hline(yintercept = -log10(pval_cut), linetype = "dashed") +
@@ -379,14 +387,15 @@ plot_lfc_combined <- bind_rows(plot_lfc_combined_list)
 plot_lfc_combined <- plot_lfc_combined %>% 
   dplyr::filter(abs(log2FC_aware) < 7.0)
 
+
 # Scatter plot
 comparison_lfc <- ggplot(plot_lfc_combined, aes(x = log2FC_aware, y = log2FC_naive, color = cnv_group)) + 
   geom_point(shape = 20, size = 3) +
   geom_abline() +
   geom_vline(xintercept = 0, linetype = "dotted", color = "black", size = 0.5) +
   geom_hline(yintercept = 0, linetype = "dotted", color = "black", size = 0.5) +
-  xlab("Effect size (log2) CN-aware") +
-  ylab("Effect size (log2) CN-naive") +
+  xlab("Effect size (log2) DeConveil") +
+  ylab("Effect size (log2) PyDESeq2") +
   scale_x_continuous(breaks = seq(-10, 10, by = 4)) +
   scale_y_continuous(breaks = seq(-10, 10, by = 4)) +
   ggh4x::facet_nested(factor(tumor_type, levels = c("LUAD", "LUSC", "BRCA", "LIHC", "KIRC")) ~ 
@@ -504,16 +513,16 @@ joint_pvalue <- bind_rows(plot_pval_combined_list)
 comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_aware), color = cnv_group)) + 
   geom_point(shape=20, size=3) +
   geom_abline()+
-  xlab("FDR CN-aware") +
-  ylab ("FDR CN-naive") +
+  xlab("FDR DeConveil") +
+  ylab ("FDR PyDESeq2") +
   scale_x_continuous(breaks = seq(0, 140, by = 40))+
   scale_y_continuous(breaks = seq(0, 140, by = 40))+
   scale_color_manual(name = "CNV group", values = cnv_colors)+
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))+
-  facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
+  #facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
   theme_bw()+
   ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~
-  factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
+                        factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
   theme(
     legend.position="",
     axis.title.x = element_text(size=16, color = "black"),  
