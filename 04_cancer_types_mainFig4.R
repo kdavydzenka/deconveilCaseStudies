@@ -11,8 +11,8 @@ source("deconveilCaseStudies/utils.R")
 tumor_types <- c("LUAD", "LUSC", "BRCA") 
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results/{tumor}/res_CNaware.csv"
+  res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive_buffered.csv",
+  res_deconveil = "deconveilCaseStudies/results/{tumor}/res_CNaware_buffered.csv"
 )
 
 # Define thresholds
@@ -92,7 +92,7 @@ cn_aware_d_compensated <- extract_genes(gene_groups$d_compensated, "Dosage-compe
 gene_groups_join <- list(cn_aware_d_sensitive, cn_aware_d_insensitive, cn_aware_d_compensated)
 names(gene_groups_join) <- c("d_sensitive", "d_insensitive", "d_compensated")
 
-venn_data <- cn_aware_d_compensated %>%
+venn_data <- cn_aware_d_sensitive %>%
   mutate(present = 1) %>% 
   pivot_wider(names_from = tumor_type, values_from = present, values_fill = 0) %>% 
   select(-gene_group) %>%

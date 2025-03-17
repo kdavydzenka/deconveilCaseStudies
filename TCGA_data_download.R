@@ -1,24 +1,24 @@
 ### Download data from GDC portal ###
 
-#rm(list=ls())
+rm(list=ls())
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/TCGA/")
-pkgs <- c("tidyverse", "TCGAbiolinks", "SummarizedExperiment")
+pkgs <- c("tidyverse", "TCGAbiolinks", "SummarizedExperiment", "sesameData", "sesame")
 sapply(pkgs, require, character.only = TRUE)
 
 
 # Get a list of projects #
 gdcprojects = getGDCprojects()
-getProjectSummary('TCGA-HNSC')
+getProjectSummary('TCGA-BRCA')
 
-# build a query to retrieve data #
 
-query_TCGA_cnv <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
+# Build a query to retrieve data #
+
+query_TCGA_cnv <- TCGAbiolinks::GDCquery(project = 'TCGA-BRCA',
                                          data.category = "Copy Number Variation",
                                          sample.type = c("Primary Tumor"),
                                          data.type = "Gene Level Copy Number")
                                          
-
-query_TCGA_rna_tumor <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
+query_TCGA_rna_tumor <- TCGAbiolinks::GDCquery(project = 'TCGA-BRCA',
                        data.category = 'Transcriptome Profiling',
                        experimental.strategy = 'RNA-Seq',
                        workflow.type = 'STAR - Counts',
@@ -27,18 +27,50 @@ query_TCGA_rna_tumor <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
                        access = 'open')
               
 
-query_TCGA_rna_normal <- TCGAbiolinks::GDCquery(project = 'TCGA-HNSC',
+query_TCGA_rna_normal <- TCGAbiolinks::GDCquery(project = 'TCGA-BRCA',
                            data.category = 'Transcriptome Profiling',
                            experimental.strategy = 'RNA-Seq',
                            workflow.type = 'STAR - Counts',
                            data.type = "Gene Expression Quantification",
                            sample.type = "Solid Tissue Normal",
                            access = 'open')
-                      
-# download data
+
+
+patientID_brca <- colnames(rna_tumor)
+patientID_brca <- gsub(" -01A", "", patientID_brca)
+
+query_mirna <- TCGAbiolinks::GDCquery(
+  project = "TCGA-BRCA", 
+  experimental.strategy = "miRNA-Seq",
+  data.category = "Transcriptome Profiling", 
+  data.type = "miRNA Expression Quantification",
+  sample.type = "Primary Tumor",
+  barcode = patientID_brca)
+
+
+query_met <- GDCquery(
+  project= "TCGA-BRCA", 
+  data.category = "DNA Methylation", 
+  data.type = "Methylation Beta Value",
+  platform = "Illumina Human Methylation 450", 
+  sample.type = "Primary Tumor",
+  barcode = patientID_brca
+)
+
+
+# Download data
 GDCdownload(query_TCGA_cnv)
 GDCdownload(query_TCGA_rna_tumor)
 GDCdownload(query_TCGA_rna_normal)
+GDCdownload(query_mirna)
+GDCdownload(query_met)
+
+mirna <- GDCprepare(query = query_mirna)
+
+dna_met <- GDCprepare(query_met)
+beta <- dna_met@assays@data@listData[[1]]
+saveRDS(dna_met, file = "BRCA/dna_meth.RDS")
+saveRDS(mirna, file = "BRCA/mirna.RDS")
 
 
 ## Clinical data ##

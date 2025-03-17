@@ -7,7 +7,8 @@ sapply(pkgs, require, character.only = TRUE)
 
 # Load data
 gene_groups_CNaware <- readRDS("deconveilCaseStudies/results/case_studies/BRCA/survival/gene_groups.RDS")
-#res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
+res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
+
 clinical_data <- readRDS("TCGA/BRCA/clinical_full.RDS")
 rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
 cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")

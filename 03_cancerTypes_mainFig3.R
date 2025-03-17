@@ -119,7 +119,7 @@ read_data <- function(tumor_type) {
 
 # Main analysis pipeline #
 
-tumor_types <- c("LUAD") # Main
+tumor_types <- c("LUSC") # Main
 tumor_types <- c("LUSC", "BRCA", "LIHC", "KIRC") # Supplementary
 lfc_cut = 1.0
 pval_cut = 0.05 
@@ -187,6 +187,8 @@ results_list <- lapply(tumor_types, function(tumor_type) {
     v_plot_data <- v_plot_data %>% filter(padj > 2.84e-169)
   } else if (tumor_type == "LIHC") {
     v_plot_data <- v_plot_data %>% filter(padj > 4.949e-74)
+  } else if (tumor_type == "LUSC") {
+    v_plot_data <- v_plot_data %>% filter(padj > 6.085672e-183)
   }
   
   list(
@@ -197,6 +199,7 @@ results_list <- lapply(tumor_types, function(tumor_type) {
     cn_aware = cn_aware
   )
 })
+
 
 # Combine all results
 v_plot_data_all <- bind_rows(lapply(results_list, `[[`, "v_plot_data"))
@@ -226,11 +229,9 @@ p_volcanos <- v_plot_data_all %>%
   scale_x_continuous(breaks = seq(floor(min(v_plot_data_all$log2FC)), 
                                   ceiling(max(v_plot_data_all$log2FC)), by = 2)) +
   ggh4x::facet_nested(factor(method, levels = c("PyDESeq2", "DeConveil"))
-                      ~factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC")), 
+                      ~factor(tumor_type, levels = c("LUAD", "LUSC", "BRCA", "LIHC", "KIRC")), 
                       scales ="free", independent = "y")+
-  #facet_wrap(~factor(method, levels = c("CN naive", "CN aware")), 
-             #nrow = 1, 
-             #labeller = as_labeller(c("CN naive" = "PyDESeq2", "CN aware" = "DeConveil"))) +
+  #facet_wrap(~factor(method, levels = c("PyDESeq2", "DeConveil")), nrow = 1) +
   labs(x = expression(Log[2] ~ FC), y = expression(-log[10] ~ Pvalue), col = "Gene group") +
   geom_vline(xintercept = c(-lfc_cut, lfc_cut), linetype = 'dashed') +
   geom_hline(yintercept = -log10(pval_cut), linetype = "dashed") +
@@ -243,8 +244,8 @@ p_volcanos <- v_plot_data_all %>%
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
 p_volcanos
 
-ggsave("deconveilCaseStudies/plots/main/volcano_luad.png", dpi = 400, width = 9.0, height = 4.0, plot = p_volcanos)
-ggsave("deconveilCaseStudies/plots/supplementary/volcano_pancancer.png", dpi = 400, width = 14.0, height = 6.0, plot = p_volcanos)
+ggsave("deconveilCaseStudies/plots/saturation_model/volcano_luad.png", dpi = 400, width = 9.0, height = 4.0, plot = p_volcanos)
+ggsave("deconveilCaseStudies/plots/saturation_model/volcano_pancancer.png", dpi = 400, width = 14.0, height = 6.0, plot = p_volcanos)
 
 
 ## CN barplot ##
@@ -253,9 +254,9 @@ combined_data <- bind_rows(cn_aware_all)
 
 combined_data <- combined_data %>% 
   mutate(cnv_group = case_when(
-    cnv_mean > 0.5 & cnv_mean <= 1.7  ~ "loss",
-    cnv_mean > 1.7 & cnv_mean <= 2.5  ~ "neutral",
-    cnv_mean > 2.5 & cnv_mean <= 4.0  ~ "gain",
+    cnv_mean > 0.5 & cnv_mean <= 1.8  ~ "loss",
+    cnv_mean > 1.8 & cnv_mean <= 2.3  ~ "neutral",
+    cnv_mean > 2.3 & cnv_mean <= 4.0  ~ "gain",
     cnv_mean > 4.0 ~ "amplification"
   ))
 
@@ -279,6 +280,19 @@ barplot_data <- combined_data %>%
 
 combined_data$gene_group <- factor(combined_data$gene_group, levels = c("DIGs", "DSGs", "DCGs"))
 combined_data$tumor_type <- factor(combined_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
+barplot_data$gene_group <- factor(barplot_data$gene_group, levels = c("DIGs", "DSGs", "DCGs"))
+barplot_data$tumor_type <- factor(barplot_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
+
+#dsg_data <- combined_data[combined_data$gene_group == "DSGs", ]
+#dsg <- dsg_data$geneID
+#dig_data <- combined_data[combined_data$gene_group == "DIGs", ]
+#dig <- dig_data$geneID
+#dcg_data <- combined_data[combined_data$gene_group == "DCGs", ]
+#dcg <- dcg_data$geneID
+
+#gene_groups <- list(dsg, dig, dcg)
+#names(gene_groups) <- c("dsg", "dig", "dcg")
+#saveRDS(gene_groups, file = ("/Users/katsiarynadavydzenka/Documents/PhD_AI/TCGA/LUSC/gene_groups.RDS"))
 
 
 barplot_cnv <- ggplot2::ggplot(combined_data, aes(x = gene_group, fill = cnv_group)) +
@@ -305,7 +319,7 @@ barplot_stat <- ggplot2::ggplot(barplot_data, aes(x = gene_group, y = percentage
   geom_bar(stat = "identity", color = "black", width = 0.6, alpha = 0.7) +  
   geom_text(aes(label = paste0(Count, " (", round(percentage, 1), "%)")), 
             position = position_stack(vjust = 0.5), 
-            size = 3, color = "black", fontface = "plain") +
+            size = 4, color = "black", fontface = "plain") +
   scale_fill_manual(values = gene_group_colors) +  
   theme_classic() +  
   labs(y = "Percentage of Genes", x = "", title = "", fill = "Gene Group") +
@@ -314,16 +328,19 @@ barplot_stat <- ggplot2::ggplot(barplot_data, aes(x = gene_group, y = percentage
     axis.text.x = element_text(size = 16, color = "black", angle = 45, hjust = 1),  
     axis.text.y = element_text(size = 16, color = "black"),                         
     axis.title.x = element_text(size = 16, face = "plain", color = "black"),          
-    axis.title.y = element_text(size = 16, face = "plain", color = "black"),          
-    legend.position = 'right',
+    axis.title.y = element_text(size = 16, face = "plain", color = "black"),   
+    strip.text = element_text(size = 16, face = "plain", color = "black"),
+    legend.position = '',
     legend.text = element_text(size = 14, color = "black"),                          
     legend.title = element_text(size = 16, face = "plain", color = "black")
   )
 barplot_stat
 
-ggsave("deconveilCaseStudies/plots/main/barplot_cnv_luad.png", dpi = 400, width = 6.0, height = 6.0, plot = barplot_cnv)
-ggsave("deconveilCaseStudies/plots/main/barplot_stats_brca.png", dpi = 400, width = 6.0, height = 5.0, plot = barplot_stat)
-ggsave("deconveilCaseStudies/plots/supplementary/barplot_cnv_pancancer.png", dpi = 400, width = 14.0, height = 4.5, plot = barplot_cnv)
+ggsave("deconveilCaseStudies/plots/saturation_model/barplot_cnv_luad.png", dpi = 400, width = 6.0, height = 6.0, plot = barplot_cnv)
+ggsave("deconveilCaseStudies/plots/saturation_model/barplot_stats_luad.png", dpi = 400, width = 5.0, height = 5.0, plot = barplot_stat)
+ggsave("deconveilCaseStudies/plots/saturation_model/barplot_cnv_pancancer.png", dpi = 400, width = 14.0, height = 4.5, plot = barplot_cnv)
+ggsave("deconveilCaseStudies/plots/saturation_model/barplot_stats_pancancer.png", dpi = 400, width = 14.0, height = 4.5, plot = barplot_stat)
+
 
 
 # Calculate how many DEGs affected by CN gain & amplification
@@ -364,9 +381,9 @@ for (tumor_type in names(results_list)) {
   
   plot_lfc <- plot_lfc %>%
     dplyr::mutate(cnv_group = case_when(
-      cnv_mean > 0.5 & cnv_mean <= 1.7  ~ "loss",
-      cnv_mean > 1.7 & cnv_mean <= 2.5  ~ "neutral",
-      cnv_mean > 2.5 & cnv_mean <= 4.0 ~ "gain",
+      cnv_mean > 0.5 & cnv_mean <= 1.8  ~ "loss",
+      cnv_mean > 1.7 & cnv_mean <= 2.3  ~ "neutral",
+      cnv_mean > 2.3 & cnv_mean <= 4.0 ~ "gain",
       cnv_mean > 4.0 ~ "amplification"))
   
   plot_lfc <- plot_lfc %>% remove_rownames() %>% column_to_rownames(var = "geneID")
@@ -387,6 +404,7 @@ plot_lfc_combined <- bind_rows(plot_lfc_combined_list)
 plot_lfc_combined <- plot_lfc_combined %>% 
   dplyr::filter(abs(log2FC_aware) < 7.0)
 
+plot_lfc_combined$cnv_group <- factor(plot_lfc_combined$cnv_group, levels = c("loss", "neutral", "gain", "amplification"))
 
 # Scatter plot
 comparison_lfc <- ggplot(plot_lfc_combined, aes(x = log2FC_aware, y = log2FC_naive, color = cnv_group)) + 
@@ -400,6 +418,7 @@ comparison_lfc <- ggplot(plot_lfc_combined, aes(x = log2FC_aware, y = log2FC_nai
   scale_y_continuous(breaks = seq(-10, 10, by = 4)) +
   ggh4x::facet_nested(factor(tumor_type, levels = c("LUAD", "LUSC", "BRCA", "LIHC", "KIRC")) ~ 
                         factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification"))) +
+  #facet_wrap(~cnv_group, scales = "free", nrow = 1)+
   scale_color_manual(name = "CN group", values = cnv_colors) +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1))) +
   theme_bw() +
@@ -416,8 +435,8 @@ comparison_lfc <- ggplot(plot_lfc_combined, aes(x = log2FC_aware, y = log2FC_nai
 
 comparison_lfc
 
-ggsave("deconveilCaseStudies/plots/main/scatter_lfc_luad.png", dpi = 400, width = 8.0, height = 3.5, plot = comparison_lfc)
-ggsave("deconveilCaseStudies/plots/supplementary/scatter_lfc_pancancer.png", dpi = 400, width = 9.0, height = 9.0, plot = comparison_lfc)
+ggsave("deconveilCaseStudies/plots/saturation_model/scatter_lfc_luad.png", dpi = 400, width = 10.0, height = 4.0, plot = comparison_lfc)
+ggsave("deconveilCaseStudies/plots/saturation_model/scatter_lfc_pancancer.png", dpi = 400, width = 9.0, height = 9.0, plot = comparison_lfc)
 
 
 # Effect size difference 
@@ -443,8 +462,8 @@ violin <- ggplot(plot_lfc, aes(x = cnv_group, y = eff_size_diff, fill = cnv_grou
   )
 violin
 
-ggsave("deconveilCaseStudies/plots/main/violin_luad.png", dpi = 400, width = 5.0, height = 5.0, plot = violin)
-ggsave("deconveilCaseStudies/plots/supplementary/violin_pancancer.png", dpi = 400, width = 3.5, height = 14.0, plot = violin)
+ggsave("deconveilCaseStudies/plots/saturation_model/violin_luad.png", dpi = 400, width = 5.0, height = 5.0, plot = violin)
+ggsave("deconveilCaseStudies/plots/saturation_model/violin_pancancer.png", dpi = 400, width = 3.5, height = 14.0, plot = violin)
 
 # Calculate median and SD
 lfc_stats <- plot_lfc %>% 
@@ -510,6 +529,8 @@ for (tumor_type in names(results_list)) {
 
 joint_pvalue <- bind_rows(plot_pval_combined_list)
 
+joint_pvalue$cnv_group <- factor(joint_pvalue$cnv_group, levels = c("loss", "neutral", "gain", "amplification"))
+
 comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_aware), color = cnv_group)) + 
   geom_point(shape=20, size=3) +
   geom_abline()+
@@ -519,10 +540,11 @@ comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_
   scale_y_continuous(breaks = seq(0, 140, by = 40))+
   scale_color_manual(name = "CNV group", values = cnv_colors)+
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))+
-  #facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
+  facet_wrap(~factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")), nrow = 1)+
   theme_bw()+
-  ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~
-                        factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
+  #ggh4x::facet_nested(factor(tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))~
+                        #factor(cnv_group, levels = c("loss", "neutral", "gain", "amplification")))+
+  #facet_wrap(~cnv_group, scales = "free", nrow = 1)+
   theme(
     legend.position="",
     axis.title.x = element_text(size=16, color = "black"),  
@@ -535,8 +557,8 @@ comparison_pval <- ggplot(joint_pvalue, aes(x=-log10(padj_naive), y=-log10(padj_
   )
 comparison_pval
 
-ggsave("deconveilCaseStudies/plots/main/scatter_pvalue_luad.png", dpi = 400, width = 8.0, height = 3.0, plot = comparison_pval)
-ggsave("deconveilCaseStudies/plots/supplementary/scatter_pval_pancancer.png", dpi = 400, width = 8.0, height = 8.0, plot = comparison_pval)
+ggsave("deconveilCaseStudies/plots/saturation_model/scatter_pvalue_luad.png", dpi = 400, width = 10.0, height = 3.5, plot = comparison_pval)
+ggsave("deconveilCaseStudies/plots/saturation_model/scatter_pval_pancancer.png", dpi = 400, width = 8.0, height = 8.0, plot = comparison_pval)
 
 
 ## Compare p-value for amplified and gain-affected genes ##
@@ -619,6 +641,6 @@ sankey <- ggplot(data_ggforce, aes(x = x, id = id, split = y, value = freq)) +
   )
 sankey
 
-ggsave("deconveilCaseStudies/plots/main/sankey_luad.png", dpi = 400, width = 4.0, height = 5.0, plot = sankey)
+ggsave("deconveilCaseStudies/plots/saturation_model/sankey_luad.png", dpi = 400, width = 4.0, height = 5.0, plot = sankey)
 ggsave("deconveilCaseStudies/plots/supplementary/sankey_kirc.png", dpi = 400, width = 4.0, height = 5.0, plot = sankey)
 
