@@ -2,7 +2,7 @@ setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 
 pkgs <- c("tidyverse", "ggplot2", "edgeR", "VennDiagram", "pROC", "PRROC", "grid", "caret")
 sapply(pkgs, require, character.only = TRUE)
-source("CN-aware-DGE/R/utils.R")
+source("deconveilCaseStudies/utils.R")
 
 ### AUC values calculation for 10 replicates across methods and simulation configurations ###
 
@@ -13,7 +13,7 @@ gene_counts <- c(1000, 3000, 5000)
 n_replicates <- 10
 
 load_rna_counts <- function(sample, gene) {
-  file_path <- paste0("deconveilCaseStudies/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", sample, "_", gene, "_brca.rds")
+  file_path <- paste0("deconveilCaseStudies/simulations/results/simulation_1/replicates_rna_counts_sim/rna_counts_sim_", sample, "_", gene, "_brca.rds")
   readRDS(file_path)
 }
 
@@ -39,7 +39,7 @@ load_results <- function(method, approach, sample, gene, replicate, extension = 
   
   # Construct file path and name
   file_name <- paste0(replicate, "_res_", toupper(approach), "_", sample, "_", gene, ".", extension)
-  file_path <- file.path("deconveilCaseStudies/simulations/results", method_dir, approach_dir, file_name)
+  file_path <- file.path("deconveilCaseStudies/simulations/results/simulation_1/", method_dir, approach_dir, file_name)
   
   # Load file based on extension
   if (extension == "csv") {
@@ -258,6 +258,8 @@ for (config in names(all_auc_values_by_config)) {
 summary_auc_df <- summary_auc_df %>%
   separate(Configuration, into = c("n_samples", "n_genes"), sep = "_") %>%
   dplyr::mutate(n_samples = as.numeric(n_samples), n_genes = as.numeric(n_genes))
+
+saveRDS(summary_auc_df, file = "deconveilCaseStudies/simulations/auc_df_plot.RDS")
 
 summary_auc_df_filt <- summary_auc_df %>%
   dplyr::mutate(`Mean ± SD` = paste0(round(`Mean_AUC`, 3), " ± ", round(`SD_AUC`, 3))) %>% 

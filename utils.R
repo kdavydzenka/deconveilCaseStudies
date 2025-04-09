@@ -376,13 +376,13 @@ evaluate_simulation_performance <- function(n_samples, n_genes) {
   
   for (replicate in 1:10) {
     # Load true labels
-    true_labels_file <- paste0("deconveilCaseStudies/simulations/results/replicates_rna_counts_sim/rna_counts_sim_", n_samples, "_", n_genes, "_brca.rds")
+    true_labels_file <- paste0("deconveilCaseStudies/simulations/results/simulation_1/replicates_rna_counts_sim/rna_counts_sim_", n_samples, "_", n_genes, "_brca.rds")
     true_labels <- readRDS(true_labels_file)@variable.annotations$differential.expression
     
     # Load prediction results for the current replicate
-    res_pydeseq <- read.csv(paste0("deconveilCaseStudies/simulations/results/replicates_pydeseq/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".csv"))
-    res_deconveil <- read.csv(paste0("deconveilCaseStudies/simulations/results/replicates_pydeseq/cn_aware/", replicate, "_res_CNaware_", n_samples, "_", n_genes, ".csv"))
-    res_edge <- readRDS(paste0("deconveilCaseStudies/simulations/results/replicates_edgeR/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".RDS"))
+    res_pydeseq <- read.csv(paste0("deconveilCaseStudies/simulations/results/simulation_1/replicates_pydeseq/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".csv"))
+    res_deconveil <- read.csv(paste0("deconveilCaseStudies/simulations/results/simulation_1/replicates_pydeseq/cn_aware/", replicate, "_res_CNaware_", n_samples, "_", n_genes, ".csv"))
+    res_edge <- readRDS(paste0("deconveilCaseStudies/simulations/results/simulation_1/replicates_edgeR/cn_naive/", replicate, "_res_CNnaive_", n_samples, "_", n_genes, ".RDS"))
     
     # Process results
     res_pydeseq <- res_pydeseq %>% 

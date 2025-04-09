@@ -1,11 +1,11 @@
-### Test edgeR ###
+# Run DESeq2 #
 
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
-pkgs <- c("dplyr", "ggplot2", "edgeR", "tidyverse")
+pkgs <- c("dplyr", "ggplot2", "tidyr", "DESeq2")
 sapply(pkgs, require, character.only = TRUE)
 
 
-sample_sizes <- c(10,20,40,100)
+sample_sizes <- c(10, 20, 40, 100)
 gene_counts <- c(2000)
 num_replicates <- 1
 
@@ -21,29 +21,15 @@ process_and_save_replicates <- function(replicate_num, n_samples, n_genes) {
   metadata <- read.csv(metadata_path) %>% remove_rownames() %>% column_to_rownames("X")
   res_pydeseq <- read.csv(res_pydeseq_path) %>% remove_rownames() %>% column_to_rownames("X")
   
-  # CN-naive 
-  
-   cn_naive <- function(rna, metadata) {
-    design <- model.matrix(~1+condition, data=metadata)
-    edger.obj <- edgeR::DGEList(rna)
-    edger.obj <- edgeR::calcNormFactors(edger.obj, method="TMM")
-    edger.obj <- edgeR::estimateDisp(edger.obj, design)
-    fit <- edgeR::glmFit(edger.obj, design)
-    lrt <- edgeR::glmLRT(fit, coef=2)
-    return(lrt)
-  }
-  
-  lrt <- cn_naive(rna, metadata)
-  res_naive_edge <- edgeR::topTags(lrt, n=Inf)$table
-  
-  # Align results
-  res_naive_edge <- res_naive_edge %>% dplyr::rename(padj = FDR)
-  rownames_idx <- match(rownames(res_pydeseq), rownames(res_naive_edge))
-  res_naive_edge <- res_naive_edge[rownames_idx,] %>% na.omit()
+  # Test DESeq2
+  ds <- DESeq2::DESeqDataSetFromMatrix(countData = rna, colData = metadata, design = ~condition)
+  dds <- DESeq2::DESeq(ds)
+  res_deseq <- lfcShrink(dds, coef="condition_B_vs_A", type="apeglm")
+  res_deseq_df <- as.data.frame(res_deseq@listData)
   
   # Save results
-  saveRDS(res_naive_edge, file = sprintf("deconveilCaseStudies/simulations/results/simulation_2/replicates_edgeR/%d_res_CNnaive_%d_%d.RDS", replicate_num, n_samples, n_genes))
-
+  saveRDS(res_deseq_df, file = sprintf("deconveilCaseStudies/simulations/results/simulation_2/replicates_deseq/%d_res_CNnaive_%d_%d.RDS", replicate_num, n_samples, n_genes))
+  
   message(sprintf("Processed replicate %d for %d samples and %d genes.", replicate_num, n_samples, n_genes))
 }
 
@@ -60,6 +46,5 @@ for (replicate_num in 1:num_replicates) {
     }
   }
 }
-
 
 

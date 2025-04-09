@@ -9,7 +9,7 @@ source("deconveilCaseStudies/utils.R")
 
 ## Input data CN | Datasets analysed LUAD | BRCA | LIHC | LUSC ##
 
-data_path <- "TCGA/LUAD/cnv_tumor.RDS"
+data_path <- "TCGA/lung/LUAD/cnv_tumor.RDS"
 dataset_name <- "LUAD_cnv"
 cnv_tumor <- readRDS(data_path)
 
@@ -32,7 +32,7 @@ cancer_clusters <- list(
   LIHC = c(1, 2)
 )
 
-cnv_filt <- cnv_tumor %>% filter(Cluster %in% cancer_clusters$BRCA) # LUSC | LIHC
+cnv_filt <- cnv_tumor %>% filter(Cluster %in% cancer_clusters$LIHC) # LUSC | LIHC
 cnv_filt <- dplyr::subset(cnv_filt, select = -Cluster)
 cnv_filt <- t(cnv_filt) %>% as.matrix()
 cnv_filt<- apply(cnv_tumor, 2, function(x) ifelse(x > 15, 15, x)) 
@@ -55,7 +55,7 @@ cnv_mean$geneID <- rownames(cnv_mean)
 
 ## Input data RNA ##
 
-data_path <- "TCGA/LUAD/rna_counts.RDS"
+data_path <- "TCGA/lung/LUAD/rna_counts.RDS"
 dataset_name <- "LUAD_rna"
 
 rna <- rna_processing(dataset_name, data_path, cnv_filt)
@@ -106,7 +106,7 @@ cnv <- cnv_mean %>%
     cnv_mean > 4.5 ~ "5")) %>% 
   dplyr::select(cnv)
 
-cnv <- cnv[rownames(cnv) %in% rownames(rna_zscore_normal),]
+cnv <- cnv[rownames(cnv) %in% rownames(rna_zscore_tumor),]
 
 
 ### Preparing data for boxplot ###
@@ -136,11 +136,11 @@ p_tumor <- rbind(p_brca_t, p_lusc_t, p_lihc_t)
 
 # Boxplot #
 
-col <- qualitative_hcl(5, palette = "Warm")
-
+#col <- qualitative_hcl(5, palette = "Warm")
 p_luad_t$cnv <- factor(p_luad_t$cnv, levels = c(1, 2, 3, 4, 5))
+col <- c("1" = "dodgerblue1", "2" = "darkgray", "3" = "green4", "4" = "coral3", "5" = "hotpink3")
 
-bxp_t <- ggplot(p_luad_t, aes(x = cnv, y = zscore_mean, fill = cnv)) + 
+bxp_t <- ggplot(p_luad_t, aes(x = cnv, y = zscore_mean, color = cnv)) + 
   geom_boxplot(outlier.colour="black", outlier.shape=16, outlier.size=2, notch = F, show.legend = F)+
   geom_smooth(method = "loess", formula = y ~ x, se=FALSE, color="darkblue", aes(group=1), linetype = 'dashed')+
   labs(x="CN group", y = "mRNA Z-score")+
@@ -148,7 +148,7 @@ bxp_t <- ggplot(p_luad_t, aes(x = cnv, y = zscore_mean, fill = cnv)) +
   theme(strip.text.x = element_text(size=12, color="black", face="bold.italic"))+
   ggplot2::theme(legend.position = 'none')+
   theme_classic()+
-  scale_fill_manual(values=col)+
+  scale_color_manual(values=col)+
   font("xy.text", size = 22, color = "black", face = "plain")+
   font("title", size = 16, color = "black")+
   font("xlab", size = 22)+
