@@ -261,6 +261,7 @@ ggsave("deconveilCaseStudies/plots/main/barplot_onc_tsg.png", dpi = 400, width =
 
 ora_GO_path <- "deconveilCaseStudies/results/oraGO_cancer_types"
 tumor_types <- c("luad", "lusc", "brca")
+tumor_types <- c("luad")
 
 oraGO_pancancer <- list()
 
@@ -401,9 +402,32 @@ GO_terms <- list(
 )
 
 
+GO_terms_luad <- list(
+  luad = list(
+    'Dosage-sensitive' = c("DNA-templated DNA replication",
+                           "chaperone-mediated protein folding",
+                           "positive regulation of DNA metabolic process",
+                           "fibroblast proliferation",
+                           "extracellular matrix organization"),
+    
+    'Dosage-insensitive' = c("B cell mediated immunity",
+                             "immunoglobulin production",
+                             "regulation of mitotic nuclear division",
+                             "cell-cell adhesion via plasma-membrane adhesion molecules",
+                             "cilium movement"),
+    
+    'Dosage-compensated' = c("positive regulation of cell-cell adhesion",
+                             "positive regulation of T cell activation",
+                             "positive regulation of lymphocyte mediated immunity",
+                             "negative regulation of kinase activity",
+                             "response to hypoxia")
+  )
+)
+
+
 process_pancancer_data <- function(tumor, category, oraGO_pancancer) {
   if (!is.null(oraGO_pancancer[[tumor]]) && !is.null(oraGO_pancancer[[tumor]][[category]])) {
-    terms <- GO_terms[[tumor]][[category]]
+    terms <- GO_terms_luad[[tumor]][[category]]
     if (!is.null(terms)) {
       oraGO_pancancer[[tumor]][[category]] %>%
         filter(Description %in% terms) %>%
@@ -417,17 +441,17 @@ process_pancancer_data <- function(tumor, category, oraGO_pancancer) {
   }
 }
 
-result_GO_pancancer <- lapply(names(GO_terms), function(tumor) {
-  lapply(names(GO_terms[[tumor]]), function(category) {
+result_GO_pancancer <- lapply(names(GO_terms_luad), function(tumor) {
+  lapply(names(GO_terms_luad[[tumor]]), function(category) {
     processed_data <- process_pancancer_data(tumor, category, oraGO_pancancer)
     if (!is.null(processed_data) && "p.adjust" %in% colnames(processed_data)) {
       processed_data$log_padjust <- -log10(processed_data$p.adjust)
     }
     processed_data
   }) %>%
-    setNames(names(GO_terms[[tumor]])) 
+    setNames(names(GO_terms_luad[[tumor]])) 
 }) %>%
-  setNames(names(GO_terms)) 
+  setNames(names(GO_terms_luad)) 
 
 
 dotplot_data <- bind_rows(
@@ -472,17 +496,19 @@ split_in_two_lines <- function(text) {
   paste(paste(words[1:midpoint], collapse = " "), "\n", paste(words[(midpoint + 1):length(words)], collapse = " "), sep = "")
 }
 
+dotplot_data$Description <- as.character(dotplot_data$Description)
 dotplot_data$Description <- sapply(dotplot_data$Description, split_in_two_lines)
+dotplot_data$GeneRatio_val <- round(dotplot_data$GeneRatio_val, 2)
 
 
-plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
+plot_GO <- ggplot(dotplot_data, aes(x = factor(GeneRatio_val), y = Description)) +
   geom_point(aes(size = Count, color = log_padjust)) +
   facet_wrap(~factor(Category, levels = c("DSGs", "DIGs", "DCGs")), scales = "free", ncol = 3) +
-  scale_color_gradient(low = "blue", high = "#FAA43A", name = "-log10(p.adjust)") +
+  scale_color_gradient(low = "mediumpurple", high = "coral1", name = "-log10(p.adjust)") +
   theme_bw() +
   theme(
     panel.spacing = unit(1, "lines"),
-    axis.text.x = element_text(size = 16, color = "black", angle = 45, hjust = 1),  
+    axis.text.x = element_text(size = 12, color = "black", hjust = 1),  
     axis.text.y = element_text(size = 16, color = "black"),
     legend.key.size = unit(0.6, "cm"), 
     legend.text = element_text(size = 12, color = "black"),
@@ -494,7 +520,7 @@ plot_GO <- ggplot(dotplot_data, aes(x = Tumor, y = Description)) +
   ) +
   labs(
     title = "",
-    x = "Tumor types",
+    x = "gene ratio",
     y = "Biological Process GO term",
     size = "Gene Count"
   )
@@ -502,4 +528,4 @@ plot_GO
 
 ggsave("deconveilCaseStudies/plots/main/GOdotplot_pancancer.png", dpi = 400, width = 18.0, height = 6.0, plot = plot_GO)
 ggsave("deconveilCaseStudies/plots/supplementary/GOdotplot_pancancer_private.png", dpi = 400, width = 24.0, height = 5.0, plot = plot_GO)
-
+ggsave("deconveilCaseStudies/plots/main/GOdotplot_luad_v2.png", dpi = 400, width = 18.0, height = 4.5, plot = plot_GO)

@@ -98,11 +98,11 @@ performance_plot <- ggplot(plot_df_final, aes(x = SampleSize, y = Mean, color = 
     axis.text.y = element_text(size = 14, color = "black"),                      
     legend.text = element_text(size = 13, color = "black"),                      
     legend.title = element_text(size = 15, color = "black"),
-    legend.position = "right"
+    legend.position = "bottom"
   )
 performance_plot
 
-ggsave("deconveilCaseStudies/plots/main/performance_plot_v2.png", dpi = 400, width = 10.0, height = 6.0, plot = performance_plot)    
+ggsave("deconveilCaseStudies/plots/main/performance_plot_v2.png", dpi = 400, width = 8.0, height = 6.0, plot = performance_plot)    
 
 
 # Load and process Results CN-aware & CN-naive methods

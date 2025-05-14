@@ -8,7 +8,7 @@ source("deconveilCaseStudies/utils.R")
 ### Data preprocessing ###
 
 # Input data
-tumor_type <- c("LUAD")
+tumor_type <- c("LUAD", "KIRC")
 tumor_types <- c("LUSC", "BRCA", "LIHC", "KIRC") # For Supplementary
 base_dir <- "TCGA"
 
@@ -119,7 +119,7 @@ read_data <- function(tumor_type) {
 
 # Main analysis pipeline #
 
-tumor_types <- c("LUSC") # Main
+tumor_types <- c("LUAD", "KIRC") # Main
 tumor_types <- c("LUSC", "BRCA", "LIHC", "KIRC") # Supplementary
 lfc_cut = 1.0
 pval_cut = 0.05 
@@ -279,9 +279,9 @@ barplot_data <- combined_data %>%
   ungroup()
 
 combined_data$gene_group <- factor(combined_data$gene_group, levels = c("DIGs", "DSGs", "DCGs"))
-combined_data$tumor_type <- factor(combined_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
+combined_data$tumor_type <- factor(combined_data$tumor_type, levels = c("LUAD", "KIRC"))
 barplot_data$gene_group <- factor(barplot_data$gene_group, levels = c("DIGs", "DSGs", "DCGs"))
-barplot_data$tumor_type <- factor(barplot_data$tumor_type, levels = c("LUSC", "BRCA", "LIHC", "KIRC"))
+barplot_data$tumor_type <- factor(barplot_data$tumor_type, levels = c("LUAD", "KIRC"))
 
 #dsg_data <- combined_data[combined_data$gene_group == "DSGs", ]
 #dsg <- dsg_data$geneID
@@ -313,6 +313,8 @@ barplot_cnv <- ggplot2::ggplot(combined_data, aes(x = gene_group, fill = cnv_gro
     legend.title = element_text(size = 16, face = "plain", color = "black")           
   )
 barplot_cnv
+
+ggsave("deconveilCaseStudies/plots/supplementary/barplot_cnv_luad_kirc.png", dpi = 400, width = 8.0, height = 5.0, plot = barplot_cnv)
 
 
 barplot_stat <- ggplot2::ggplot(barplot_data, aes(x = gene_group, y = percentage, fill = gene_group)) +

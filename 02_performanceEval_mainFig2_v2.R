@@ -142,22 +142,26 @@ summary_df <- results_df %>%
     .groups = "drop"
   )
 
-method_colors <- c("deconveil" = "#E64B3599", "pydeseq" = "#42B540B2")
+
+library(ggnewscale)
+method_colors <- c("deconveil" = "#F66D7A", "pydeseq" = "#27AD81FF")
+method_border_colors <- c("DeConveil" = "#990000", "PyDESeq2" = "#007439")
+results_df$BorderColor <- method_border_colors[as.character(results_df$Method)]
 
 # Boxplot: Pearson Correlation
-p1 <- ggplot(results_df, aes(x = factor(SampleSize), y = Pearson_Correlation, fill = Method)) +
-  geom_boxplot() +
+p1 <- ggplot(results_df, aes(x = factor(SampleSize), y = Pearson_Correlation, color = Method)) +
+  geom_boxplot(fill=NA) +
   labs(
     title = "Pearson corr (log2FC)",
     x = "# samples",
-    y = "Pearson Correlation (R)"
+    y = "Pearson Correlation (R2)"
   ) +
   scale_y_continuous(breaks = seq(0.6, 1, by = 0.05)) +
   theme_bw() +
-  scale_fill_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2"))+
+  scale_color_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2")) +
   theme(
     legend.position = "",
-    plot.title = element_text(hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, color = "black"),
     axis.title.x = element_text(size = 14, color = "black"),                     
     axis.title.y = element_text(size = 14, color = "black"), 
     axis.text.x = element_text(size = 12),                      
@@ -165,8 +169,8 @@ p1 <- ggplot(results_df, aes(x = factor(SampleSize), y = Pearson_Correlation, fi
   )
 
 # Boxplot: MSE
-p2 <- ggplot(results_df, aes(x = factor(SampleSize), y = MSE, fill = Method)) +
-  geom_boxplot() +
+p2 <- ggplot(results_df, aes(x = factor(SampleSize), y = MSE, color = Method)) +
+  geom_boxplot(fill=NA)+
   labs(
     title = "MSE (log2FC)",
     x = "# samples",
@@ -174,10 +178,12 @@ p2 <- ggplot(results_df, aes(x = factor(SampleSize), y = MSE, fill = Method)) +
   ) +
   scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +
   theme_bw() +
-  scale_fill_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2"))+
+  scale_color_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2")) +
   theme(
-    legend.position = "",
-    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 14),   
+    legend.text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5, color = "black"),
     axis.title.x = element_text(size = 14, color = "black"),                     
     axis.title.y = element_text(size = 14, color = "black"), 
     axis.text.x = element_text(size = 12),                      
@@ -186,29 +192,29 @@ p2 <- ggplot(results_df, aes(x = factor(SampleSize), y = MSE, fill = Method)) +
 
 
 # Boxplot: MCC
-p3 <- ggplot(results_df, aes(x = factor(SampleSize), y = MCC, fill = Method)) +
-  geom_boxplot() +
+p3 <- ggplot(results_df, aes(x = factor(SampleSize), y = MCC, color = Method)) +
+  geom_boxplot(fill=NA) +
   labs(
-    title = "MCC (padj)",
+    title = "MCC (adjusted p-value)",
     x = "# samples",
     y = "MCC"
   ) +
   scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +
   theme_bw() +
-  scale_fill_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2"))+
+  scale_color_manual(values = method_colors, labels = c("DeConveil", "PyDESeq2")) +
   theme(
-    legend.position = "right",
+    legend.position = "",
+    legend.text = element_text(size = 12),  # <-- added this line
     plot.title = element_text(hjust = 0.5),
     axis.title.x = element_text(size = 14, color = "black"),                     
     axis.title.y = element_text(size = 14, color = "black"), 
     axis.text.x = element_text(size = 12),                      
-    axis.text.y = element_text(size = 12),                      
+    axis.text.y = element_text(size = 12)                      
   )
-  
-p <- p1 + p2 + p3
+p <- p2 + p3
 p
 
-ggsave("plots/main/performance_plot_v3.png", dpi = 400, width = 12.0, height = 4.0, plot = p)    
+ggsave("plots/main/performance_plot_v3.png", dpi = 400, width = 7.0, height = 4.0, plot = p)    
 
 #ground_truth <- readRDS("simulations/results/simulation_2/replicates_rna_counts_sim/1_rna_counts_sim_10_1000_brca.rds")
 #ground_truth_logfc <- ground_truth@variable.annotations[["truelog2foldchanges"]]
