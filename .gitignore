@@ -2,3 +2,8 @@
 *.Rdata
 *.DS_Store
 *.Rhistory
+plots/*saturation_model*
+*results*
+simulations/results*
+simulations/data*
+*additional_analysis*

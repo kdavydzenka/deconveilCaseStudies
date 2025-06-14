@@ -8,7 +8,7 @@ sapply(pkgs, require, character.only = TRUE)
 base_path <- "simulations/results/simulation_4"
 lfc_cut <- 1.0
 pval_cut <- 0.05
-noise_levels <- c("no_noise", "noise_5", "noise_10", "noise_15", "noise_20")
+noise_levels <- c("no_noise", "noise_10", "noise_15", "noise_20", "noise_25")
 sample_sizes <- c(10, 20, 40, 60)
 n_genes <- 5000
 replicates <- 1:5
@@ -125,7 +125,7 @@ all_results <- purrr::cross_df(list(
 )) %>%
   purrr::pmap_dfr(~ process_one_replicate(..1, ..2, ..3))
 
-saveRDS(all_results, file = "results/cn_noise_robustness/sim_noise_allResults.RDS")
+saveRDS(all_results, file = "results/cn_noise_robustness/sim_noise_allResults_v2.RDS")
 
 summary_stats <- all_results %>%
   group_by(noise_level, sample_size, group_clean) %>%
@@ -150,7 +150,7 @@ summary_stats <- all_results %>%
 
 summary_stats$noise_level <- factor(
   summary_stats$noise_level,
-  levels = c("noise_5", "noise_10", "noise_15", "noise_20")
+  levels = c("noise_10", "noise_15", "noise_20", "noise_25")
 )
 
 summary_stats$group_clean <- factor(summary_stats$group_clean, levels = c("DSG", "DCG", "DIG", "non_DEG"))
@@ -170,7 +170,7 @@ plot_metric_custom <- function(df,
                                metric_col, 
                                y_label, 
                                y_lim = c(0, 1), 
-                               noise_labels = c("noise_5" = "5", "noise_10" = "10", "noise_15" = "15", "noise_20" = "20"),
+                               noise_labels = c("noise_10" = "10", "noise_15" = "15", "noise_20" = "20", "noise_25" = "25"),
                                sample_labels = c("10" = "# samples 10", "20" = "# samples 20", "40" = "# samples 40", "60" = "# samples 60"),
                                gene_group_colors = c("DSG" = "#D55E00", "DIG" = "#771C19", "DCG" = "#FFC300", "non_DEG" = "#888888")) {
   
@@ -216,11 +216,12 @@ plot_metric_custom <- function(df,
 
 logFC_corr_plot <- plot_metric_custom(summary_stats, "log2FC_corr", "Mean log2FC Pearson corr (R²)")
 jaccard_plot <- plot_metric_custom(summary_stats, "jaccard", "Mean Jaccard Index")
+pval_corr <- plot_metric_custom(summary_stats, "pval_corr", "Mean FDR Spearman corr (R²)")
 
-ggsave("plots/main/logfc_corr_noise.png", dpi = 400, width = 14.0, height = 4.0, plot = logFC_corr_plot)    
-ggsave("plots/main/logfc_corr_noise.png", dpi = 400, width = 14.0, height = 4.0, plot = jaccard_plot)    
+#ggsave("plots/main/logfc_corr_noise.png", dpi = 400, width = 14.0, height = 4.0, plot = logFC_corr_plot)    
+#ggsave("plots/main/logfc_corr_noise.png", dpi = 400, width = 14.0, height = 4.0, plot = jaccard_plot)    
 
-combined_plot <- (jaccard_plot / logFC_corr_plot) +
+combined_plot <- (jaccard_plot / logFC_corr_plot / pval_corr) +
   plot_annotation(
     tag_levels = 'A',
     tag_prefix = "",
@@ -231,4 +232,4 @@ combined_plot <- (jaccard_plot / logFC_corr_plot) +
   )
 combined_plot
 
-ggsave("plots/figures/sim2_noise_5000genes.png", dpi = 400, width = 14.0, height = 8.0, plot = combined_plot)    
+ggsave("plots/figures/sim2_noise_5000genes_v2.pdf", dpi = 400, width = 14.0, height = 12.0, plot = combined_plot)    

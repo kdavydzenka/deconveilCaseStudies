@@ -4,7 +4,7 @@ setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse")
 sapply(pkgs, require, character.only = TRUE)
 
-simulate_real_data_with_cn_noise <- function(n_samples, n_genes, noise_levels = c(0.05, 0.10, 0.15, 0.20), replicate_id = 1) {
+simulate_real_data_with_cn_noise <- function(n_samples, n_genes, noise_levels = c(0.10, 0.15, 0.20, 0.25), replicate_id = 1) {
   # Load data
   rna <- read.csv("TCGA/BRCA/test/rna.csv") %>% remove_rownames() %>% column_to_rownames("X")
   cnv <- read.csv("TCGA/BRCA/test/cnv.csv") %>% remove_rownames() %>% column_to_rownames("X")
@@ -68,9 +68,14 @@ simulate_real_data_with_cn_noise <- function(n_samples, n_genes, noise_levels = 
     row_idx <- sample(1:n_genes, n_noisy, replace = TRUE)
     col_idx <- sample(tumor_cols, n_noisy, replace = TRUE)
     
+    # Define noise levels and their probabilities
+    noise_values <- c(-2, -1, 0, 1, 2)
+    noise_probs <- c(0.05, 0.3, 0.3, 0.3, 0.05)  
+    
     for (i in seq_len(n_noisy)) {
+      noise <- sample(noise_values, 1, prob = noise_probs)
       cn_noisy[row_idx[i], col_idx[i]] <- round(
-        cn_noisy[row_idx[i], col_idx[i]] + sample(c(-2, -1, 0, 1, 2), 1)
+        cn_noisy[row_idx[i], col_idx[i]] + noise
       )
     }
     
