@@ -2,7 +2,7 @@ setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 
 pkgs <- c("tidyverse", "circlize", "RColorBrewer", "org.Hs.eg.db", "ggrepel")
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils.R")
+source("deconveilCaseStudies/utils/utils.R")
 
 
 # TCGA-BRCA #
@@ -11,7 +11,7 @@ source("deconveilCaseStudies/utils.R")
 
 # Load ORA results and extract components
 
-ora_GO <- readRDS("deconveilCaseStudies/results/oraGO_cancer_types/brca.RDS")
+ora_GO <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/brca.RDS")
 
 go_categories <- c("Dosage-sensitive", "Dosage-insensitive", "Dosage-compensated")
 
@@ -53,9 +53,9 @@ data_long$gene <- trimws(data_long$gene)
 
 # Load prognostic genes and filter relevant data
 prognostic_files <- list(
-  "Dosage-sensitive" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_ds.RDS",
-  "Dosage-insensitive" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dins.RDS",
-  "Dosage-compensated" = "deconveilcaseStudies/results/case_studies/BRCA/survival/prognostic_signature_dcomp.RDS"
+  "Dosage-sensitive" = "deconveilcaseStudies/plots/main/Fig 5/rds/lasso_dsg.RDS",
+  "Dosage-insensitive" = "deconveilcaseStudies/plots/main/Fig 5/rds/lasso_dig.RDS",
+  "Dosage-compensated" = "deconveilcaseStudies/plots/main/Fig 5/rds/lasso_dcg.RDS"
 )
 
 prognostic_genes <- lapply(prognostic_files, function(file) {

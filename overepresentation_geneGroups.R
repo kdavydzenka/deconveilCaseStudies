@@ -1,7 +1,7 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
-pkgs <- c("tidyverse")
+pkgs <- c("tidyverse", "openxlsx")
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils.R")
+source("deconveilCaseStudies/utils/utils.R")
 
 ### Overrepresentation analysys of Gene categories: DSGs | DIGs | DCGs ###
 
@@ -137,3 +137,48 @@ proportions_private <- sweep(private_genes, 2, total_deg_mean, "/")
 proportions_private$prop_mean <- rowMeans(proportions_private) 
 proportions_private$background_prop <- proportions$mean
 
+# Formatting data tables
+proportions_private$`Gene category` <- rownames(proportions_private)
+proportions_private <- proportions_private[, c("Gene category", setdiff(names(proportions_private), "Gene category"))]
+
+proportions_private[] <- lapply(proportions_private, function(x) {
+  if (is.numeric(x)) round(x * 100, 2) else x
+})
+
+rownames(proportions_private) <- NULL
+colnames(proportions_private) <- c(
+  "Gene category",
+  "LUAD, %", 
+  "LUSC, %", 
+  "BRCA, %", 
+  "proportion mean (n)", 
+  "background proportion, %"
+)
+
+write.xlsx(proportions_private, file = "deconveilCaseStudies/results/proportions_private.xlsx", rownames = FALSE)
+
+# Shared genes 
+
+proportions_shared <- cbind(background_data, shared_genes)
+proportions_shared <- proportions_shared %>% dplyr::select(-`total_geneCat`)
+
+proportions_shared$`Gene category` <- rownames(proportions_shared)
+proportions_shared <- proportions_shared[, c("Gene category", setdiff(names(proportions_shared), "Gene category"))]
+
+proportions_shared$background_prop <- round(proportions_shared$background_prop * 100, 2)
+proportions_shared$shared_prop <- round(proportions_shared$shared_prop * 100, 2)
+
+rownames(proportions_shared) <- NULL
+colnames(proportions_shared) <- c(
+  "Gene category",
+  "LUAD (n)", 
+  "LUSC (n)", 
+  "BRCA (n)", 
+  "gene mean (n)", 
+  "proportion, %",
+  "shared genes (n)",
+  "proportion shared, %"
+)
+
+write.xlsx(proportions_private, file = "deconveilCaseStudies/results/proportions_private.xlsx", rownames = FALSE)
+write.xlsx(proportions_shared, file = "deconveilCaseStudies/results/proportions_shared.xlsx", rownames = FALSE)
