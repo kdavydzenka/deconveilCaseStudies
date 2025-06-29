@@ -3,8 +3,5 @@
 *.DS_Store
 *.Rhistory
 plots/*saturation_model*
-*results*
-simulations/results*
-simulations/data*
 *additional_analysis*
 05_brca_onc_tsg.R
