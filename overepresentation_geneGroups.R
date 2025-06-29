@@ -10,8 +10,8 @@ source("deconveilCaseStudies/utils/utils.R")
 tumor_types <- c("LUAD", "LUSC", "BRCA") 
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results/{tumor}/res_CNaware.csv"
+  res_pydeseq = "deconveilCaseStudies/results_tcga/{tumor}/res_CNnaive.csv",
+  res_deconveil = "deconveilCaseStudies/results_tcga/{tumor}/res_CNaware.csv"
 )
 
 # Define thresholds
@@ -155,7 +155,7 @@ colnames(proportions_private) <- c(
   "background proportion, %"
 )
 
-write.xlsx(proportions_private, file = "deconveilCaseStudies/results/proportions_private.xlsx", rownames = FALSE)
+write.xlsx(proportions_private, file = "deconveilCaseStudies/results_tcga/proportions_private.xlsx", rownames = FALSE)
 
 # Shared genes 
 
@@ -180,5 +180,5 @@ colnames(proportions_shared) <- c(
   "proportion shared, %"
 )
 
-write.xlsx(proportions_private, file = "deconveilCaseStudies/results/proportions_private.xlsx", rownames = FALSE)
-write.xlsx(proportions_shared, file = "deconveilCaseStudies/results/proportions_shared.xlsx", rownames = FALSE)
+write.xlsx(proportions_private, file = "deconveilCaseStudies/results_tcga/proportions_private.xlsx", rownames = FALSE)
+write.xlsx(proportions_shared, file = "deconveilCaseStudies/results_tcga/proportions_shared.xlsx", rownames = FALSE)

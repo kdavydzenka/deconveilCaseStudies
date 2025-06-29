@@ -9,7 +9,7 @@ source("deconveilCaseStudies/utils/utils_survival.R")
 
 # Load data #
 gene_groups_CNaware <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/gene_groups.RDS")
-res_CNnaive <- read.csv("deconveilCaseStudies/results/BRCA/res_CNnaive.csv")
+res_CNnaive <- read.csv("deconveilCaseStudies/results_tcga/BRCA/res_CNnaive.csv")
 clinical_data <- readRDS("TCGA/BRCA/clinical_full.RDS")
 rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
 cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
@@ -119,8 +119,8 @@ clinical_metabric <- read_delim("TCGA/brca_metabric/data_clinical_patient.txt")
 
 process_expression_data <- function(df) {
   df %>%
-    filter(!duplicated(Hugo_Symbol)) %>%
-    select(-Entrez_Gene_Id) %>%
+    dplyr::filter(!duplicated(Hugo_Symbol)) %>%
+    dplyr::select(-Entrez_Gene_Id) %>%
     column_to_rownames("Hugo_Symbol")
 }
 
@@ -167,9 +167,16 @@ cn_metabric <- cn_metabric %>%
 cn_metabric[cn_metabric == 0] <- 0.001
 cn_metabric <- cn_metabric / 2
 
+saveRDS(rna_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
+saveRDS(cn_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
+saveRDS(clinical_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
 
 
 # Subset METABRIC data for the same genes used in TCGA-BRCA
+rna_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
+cn_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
+clinical_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
+
 rna_metabric_ds <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_ds)),]
 cn_metabric_ds <- cn_metabric[(rownames(cn_metabric) %in% rownames(rna_ds)),]
 

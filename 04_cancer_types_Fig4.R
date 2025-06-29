@@ -1,6 +1,6 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse", "ggvenn", "VennDiagram", "reactome.db", "fgsea", "org.Hs.eg.db", 
-          "data.table", "clusterProfiler", "enrichplot", "ggpubr", "msigdbr", "ComplexUpset", "ggVennDiagram")
+          "data.table", "clusterProfiler", "enrichplot", "ggpubr", "msigdbr", "ggVennDiagram")
 sapply(pkgs, require, character.only = TRUE)
 source("deconveilCaseStudies/utils/utils.R")
 source("deconveilCaseStudies/utils/utils_plot.R")
@@ -12,8 +12,8 @@ source("deconveilCaseStudies/utils/utils_plot.R")
 tumor_types <- c("LUAD", "LUSC", "BRCA") 
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results/{tumor}/res_CNaware.csv"
+  res_pydeseq = "deconveilCaseStudies/results_tcga/{tumor}/res_CNnaive.csv",
+  res_deconveil = "deconveilCaseStudies/results_tcga/{tumor}/res_CNaware.csv"
 )
 
 # Define thresholds
@@ -81,8 +81,8 @@ prepare_cn_specific_data <- function(df, gene_group_name) {
 
 extract_genes <- function(gene_group_df, gene_group_name) {
   gene_group_df %>%
-    mutate(gene_group = gene_group_name) %>%
-    select(geneID = geneID_aware, tumor_type = tumor_type_aware, gene_group)
+    dplyr::mutate(gene_group = gene_group_name) %>%
+    dplyr::select(geneID = geneID_aware, tumor_type = tumor_type_aware, gene_group)
 }
 
 venn_plots <- lapply(names(gene_groups_join), function(group_name) {
@@ -238,7 +238,7 @@ ggsave("deconveilCaseStudies/plots/main/barplot_onc_tsg.png", dpi = 500, width =
 
 ## Generate Enrichment plot ##
 
-ora_GO_path <- "deconveilCaseStudies/results/oraGO_cancer_types"
+ora_GO_path <- "deconveilCaseStudies/results_tcga/oraGO_cancer_types"
 tumor_types <- c("luad", "lusc", "brca")
 categories <- c("Dosage-sensitive", "Dosage-insensitive", "Dosage-compensated")
 category_labels <- c("Dosage-sensitive" = "DSGs", "Dosage-insensitive" = "DIGs", "Dosage-compensated" = "DCGs")

@@ -126,12 +126,12 @@ all_results <- purrr::cross_df(list(
 )) %>%
   purrr::pmap_dfr(~ process_one_replicate(..1, ..2, ..3))
 
-saveRDS(all_results, file = "results/cn_noise_robustness/sim_noise_allResults_v2.RDS")
+saveRDS(all_results, file = "plots/supplementary/rds/sim_noise_allResults_v2.RDS")
 
 
 ## Generate data summary ##
 
-all_results <- readRDS("results/cn_noise_robustness/sim_noise_allResults_v2.RDS")
+all_results <- readRDS("plots/supplementary/rds/sim_noise_allResults_v2.RDS")
 
 summary_stats <- all_results %>%
   group_by(noise_level, sample_size, group_clean) %>%
@@ -161,8 +161,8 @@ summary_stats$noise_level <- factor(
 
 summary_stats$group_clean <- factor(summary_stats$group_clean, levels = c("DSG", "DCG", "DIG", "non_DEG"))
 
-write.xlsx(summary_stats, file = "results/simulation_performance/cn_noise_robustness/robustness_simulation_metrics.xlsx")
-
+#write.xlsx(summary_stats, file = "results/simulation_performance/cn_noise_robustness/robustness_simulation_metrics.xlsx")
+saveRDS(summary_stats, file = "plots/supplementary/rds/robustness_sim_metrics.rds")
 
 # Plot
 

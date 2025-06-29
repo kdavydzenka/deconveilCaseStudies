@@ -1,6 +1,6 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/deconveilCaseStudies/")
 
-pkgs <- c("tidyverse", "ggplot2", "ggpubr", "reshape2", "MASS")
+pkgs <- c("tidyverse", "ggplot2", "ggpubr", "reshape2", "MASS", "ggnewscale")
 sapply(pkgs, require, character.only = TRUE)
 source("utils/utils.R")
 
@@ -10,6 +10,8 @@ sample_sizes <- c(10, 20, 40, 100)
 gene_counts <- c(1000)
 replicates <- 1:10
 methods <- c("deconveil", "pydeseq")
+
+# Helper functions
 
 compute_metrics <- function(true_vals, est_vals, method) {
   cor_val <- cor(true_vals, est_vals, method = "pearson", use = "complete.obs")
@@ -46,6 +48,7 @@ compute_mcc <- function(true_labels, predicted_pvals, threshold = 0.05) {
 }
 
 
+# Iterate to generate results
 
 all_results <- list()
 
@@ -142,11 +145,11 @@ summary_df <- results_df %>%
     .groups = "drop"
   )
 
-write.xlsx(summary_df, file = "results/simulation_performance/performance_metrics_cnvCounfounder.xlsx")
+#write.xlsx(summary_df, file = "results/simulation_performance/performance_metrics_cnvCounfounder.xlsx")
 saveRDS(summary_df, file = "plots/main/Fig 2/rds/performance_metrics_cnvVounfounder.rds")
 
 
-library(ggnewscale)
+## Plot ##
 method_colors <- c("deconveil" = "#F66D7A", "pydeseq" = "#27AD81FF")
 method_border_colors <- c("DeConveil" = "#990000", "PyDESeq2" = "#007439")
 results_df$BorderColor <- method_border_colors[as.character(results_df$Method)]
@@ -218,59 +221,6 @@ p3 <- ggplot(results_df, aes(x = factor(SampleSize), y = MCC, color = Method)) +
 
 ggsave("plots/main/performance_plot_p2.png", dpi = 500, width = 4.0, height = 4.0, plot = p2)   
 ggsave("plots/main/performance_plot_p3.png", dpi = 500, width = 4.0, height = 4.0, plot = p3)   
-
-#ground_truth <- readRDS("simulations/results/simulation_2/replicates_rna_counts_sim/1_rna_counts_sim_10_1000_brca.rds")
-#ground_truth_logfc <- ground_truth@variable.annotations[["truelog2foldchanges"]]
-#de_status <- ground_truth@variable.annotations[["differential.expression"]]
-
-#deconveil_res <- read.csv("simulations/results/simulation_2/replicates_deconveil/1_res_CNaware_20_2000.csv")
-#pydeseq_res <- read.csv("simulations/results/simulation_2/replicates_pydeseq/1_res_CNnaive_20_2000.csv")
-
-# Merge results into a single dataframe
-#df <- data.frame(
-  #geneID = rownames(ground_truth@count.matrix),
-  #true_log2FC = ground_truth_logfc,
-  #DE_status = de_status,
-  #deconveil_log2FC = deconveil_res$log2FoldChange,
-  #pydeseq_log2FC = pydeseq_res$log2FoldChange,
-  #deconveil_p = deconveil_res$padj,
-  #pydeseq_p = pydeseq_res$padj
-#)
-
-#metrics <- rbind(
-  #compute_metrics("deconveil_log2FC"),
-  #compute_metrics("pydeseq_log2FC"),
-  #compute_metrics("edge_log2FC"),
-  #compute_metrics("deseq_log2FC")
-#)
-
-
-# Scatter plot: Estimated vs. True Log2FC
-#scatter_plot <- function(method_name, estimated_log2FC_column) {
-  #ggplot(df, aes(x = true_log2FC, y = .data[[estimated_log2FC_column]])) +
-    #geom_point(alpha = 0.3, color = "darkgray") +  # Light gray points for background
-    #geom_density2d(aes(color = ..level..), size = 1) +  # Contour lines for density
-    #scale_color_gradient(low = "blue", high = "red") +  # Color gradient
-    #geom_abline(slope = 1, intercept = 0, color = "red", linetype = "solid") +  # Identity line
-    #theme_minimal() +
-    #labs(title = paste("Log2FC Comparison -", method_name),
-         #x = "True Log2FC",
-         #y = paste(method_name, "Estimated Log2FC")) +
-    #annotate("text", x = -3, y = 3, 
-             #label = paste0("R = ", round(cor(df$true_log2FC, df[[estimated_log2FC_column]], method = "pearson"), 2)), 
-             #size = 5)
-#}
-
-
-#library(fields)
-#p1 <- scatter_plot("DeConveil", "deconveil_log2FC")
-#p2 <- scatter_plot("PyDESeq2", "pydeseq_log2FC")
-#p3 <- scatter_plot("edgeR", "edge_log2FC")
-#p4 <- scatter_plot("deseq2", "deseq_log2FC")
-
-
-
-
 
 
 

@@ -1,3 +1,35 @@
+performance_plot <- function(plot_df,
+                             method_colors,
+                             x_label = "sample size",
+                             y_label = "Performance metric",
+                             x_labels = c("10", "20", "40", "100"),
+                             y_limits = c(0.7, 1),
+                             y_breaks = seq(0, 1, by = 0.1),
+                             legend_position = "bottom") {
+  
+  ggplot(plot_df, aes(x = SampleSize, y = Mean, color = Method, group = Method)) +
+    geom_line(size = 1.4) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD), width = 0.15, size = 0.7) +
+    ggh4x::facet_nested(factor(GeneSize) ~ factor(Metric)) +
+    labs(title = "", x = x_label, y = y_label) +
+    scale_x_discrete(labels = x_labels) +   
+    scale_y_continuous(limits = y_limits, breaks = y_breaks) + 
+    scale_color_manual(values = method_colors) +
+    theme_bw() +
+    theme(
+      strip.text = element_text(size = 12, face = "plain", color = "black"),       
+      axis.title.x = element_text(size = 12, color = "black"),                     
+      axis.title.y = element_text(size = 12, color = "black"),                     
+      axis.text.x = element_text(size = 12),                      
+      axis.text.y = element_text(size = 12),                      
+      legend.text = element_text(size = 12, color = "black"),                      
+      legend.title = element_text(size = 12, color = "black"),
+      legend.position = legend_position
+    )
+}
+
+
 plot_metrics_robustness <- function(df, 
                                     metric_col, 
                                     y_label, 
@@ -181,4 +213,38 @@ gene_barplot <- function(distribution_summary, gene_type_colors) {
       legend.title = element_text(color = "black"),
       legend.text = element_text(color = "black")
     )
+}
+
+sankey_plot <- function(data,
+                        x_var = "x",
+                        id_var = "id",
+                        split_var = "y",
+                        value_var = "freq",
+                        fill_var = "CN_naive",
+                        group_colors = NULL,
+                        x_labels = c("CN-naive", "CN-aware"),
+                        title = NULL) {
+  
+  ggplot(data, aes_string(x = x_var, id = id_var, split = split_var, value = value_var)) +
+    geom_parallel_sets(aes_string(fill = fill_var), alpha = 0.9, axis.width = 0.2,
+                       n = 4415, strength = 0.5, color = "black", linewidth = 0.3) +
+    geom_parallel_sets_axes(axis.width = 0.25, fill = "gray93",
+                            color = "gray", linewidth = 0.5) +
+    
+    # geom_parallel_sets_labels(colour = 'gray35', size = 2.0, angle = 0, fontface = "plain") +
+    scale_fill_manual(values = group_colors, name = "Gene group") +
+    scale_color_manual(values = group_colors) +
+    scale_x_continuous(breaks = seq_along(x_labels), labels = x_labels) +
+    theme_classic() +
+    theme(
+      legend.position = "bottom",
+      legend.title = element_text(size = 15, face = "plain"),
+      legend.text = element_text(size = 13),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_blank(),
+      axis.title.x = element_blank()
+    ) +
+    ggtitle(title)
 }

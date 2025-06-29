@@ -114,9 +114,9 @@ ggsave("deconveilCaseStudies/plots/supplementary/png/hist_pancancer.png", dpi = 
 # Read data files for a tumor type
 read_data <- function(tumor_type) {
   list(
-    res_pydeseq = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/res_CNnaive.csv")),
-    res_deconveil = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/res_CNaware.csv")),
-    cnv_tumor = read.csv(paste0("deconveilCaseStudies/results/", tumor_type, "/cnv_tumor.csv")) %>%
+    res_pydeseq = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/res_CNnaive.csv")),
+    res_deconveil = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/res_CNaware.csv")),
+    cnv_tumor = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/cnv_tumor.csv")) %>%
       remove_rownames() %>%
       column_to_rownames(var = "X") * 2
   )
@@ -353,7 +353,7 @@ ggsave("deconveilCaseStudies/plots/main/png/fig3_top.png", dpi = 500, width = 12
 
 deg_counts <- combined_data %>%
   filter(cnv_group %in% c("gain", "amplification")) %>%  
-  count(gene_group, cnv_group, tumor_type, name = "Count") %>%  
+  dplyr::count(gene_group, cnv_group, tumor_type, name = "Count") %>%  
   group_by(gene_group, cnv_group, tumor_type) %>%  
   summarise(deg_count = sum(Count), .groups = "drop")
 
@@ -367,6 +367,7 @@ deg_percentages <- deg_counts %>%
   ungroup()  
 
 saveRDS(deg_percentages, file = "deconveilCaseStudies/plots/main/Fig 3/rds/deg_percentage.rds")
+saveRDS(deg_percentages, file = "deconveilCaseStudies/plots/supplementary/rds/deg_percentage.rds")
 
 
 # Scatter - comparison LFC | p-value
@@ -612,10 +613,24 @@ cat("Mean p-value increased:", mean_increase, "\n")
 cat("Number of genes with increased p-value:", num_increased, " (", round(percentage_increased, 2), "%)\n")
 cat("Number of genes losing statistical significance:", num_lost_significance, "\n")
 
+summary_df <- data.frame(
+  mean_padj_naive = mean_naive,
+  mean_padj_aware = mean_aware,
+  mean_pvalue_shift = mean_shift,
+  mean_pvalue_increased = mean_increase,
+  genes_with_increased_pvalue = num_increased,
+  total_genes = total_genes,
+  percentage_genes_increased = round(percentage_increased, 2),
+  genes_lost_significance = num_lost_significance
+)
+
+saveRDS(summary_df, file = "deconveilCaseStudies/plots/main/Fig 3/rds/comparison_pvalue_gain_ampl.rds")
+
 
 ### Sankey dynamic gene groups transitions ###
 
-tumor_type <- c("LUAD")
+tumor_type <- c("LUAD") # Main
+tumor_type <- c ("LUSC", "BRCA", "LIHC", "KIRC") # Supplementary
 lfc_cut = 1.0
 pval_cut = 0.05 
 
@@ -649,28 +664,14 @@ data_ggforce <- data_ggforce %>%
 saveRDS(data_ggforce, file = "deconveilCaseStudies/plots/main/Fig 3/rds/plot_sankey.rds")
 saveRDS(data_ggforce, file = "deconveilCaseStudies/plots/supplementary/rds/plot_sankey_lusc.rds")
 
+# Plot
 g_group_colors <- c("Down-reg" = "#3C5488B2", "n.s." = "lightgray", "Up-reg" = "#CC7677")
 
-sankey <- ggplot(data_ggforce, aes(x = x, id = id, split = y, value = freq)) +
-  geom_parallel_sets(aes(fill = CN_naive), alpha = 0.9, axis.width = 0.2,
-                     n = 4415, strength = 0.5, color = "black", linewidth = 0.3) +
-  geom_parallel_sets_axes(axis.width = 0.25, fill = "gray93",
-                          color = "gray", linewidth = 0.5) +  
-  #geom_parallel_sets_labels(colour = 'gray35', size = 2.0, angle = 0, fontface = "plain") +
-  scale_fill_manual(values = g_group_colors, name = "Gene group") +
-  scale_color_manual(values = g_group_colors) +
-  scale_x_continuous(breaks = 1:2, labels = c("CN-naive", "CN-aware"))+
-  theme_classic() +
-  theme(
-    legend.position = "bottom",
-    legend.title = element_text(size = 15, face = "plain"),
-    legend.text = element_text(size = 13),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.text.y = element_blank(),
-    axis.text.x = element_blank(),
-    axis.title.x  = element_blank()
-  )
+sankey <- sankey_plot(
+  data = data_ggforce,
+  group_colors = g_group_colors,
+  title = ""
+)
 sankey
 
 ggsave("deconveilCaseStudies/plots/main/Fig 3/png/sankey_luad.png", dpi = 500, width = 4.0, height = 5.0, plot = sankey)

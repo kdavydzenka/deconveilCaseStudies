@@ -1,7 +1,7 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse")
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils.R")
+source("deconveilCaseStudies/utils/utils.R")
 
 ### BRCA - Oncogenes & TSGs ###
 
@@ -10,8 +10,8 @@ source("deconveilCaseStudies/utils.R")
 tumor_types <- c("BRCA")
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results/{tumor}/res_CNaware.csv"
+  res_pydeseq = "deconveilCaseStudies/results_tcga/{tumor}/res_CNnaive.csv",
+  res_deconveil = "deconveilCaseStudies/results_tcga/{tumor}/res_CNaware.csv"
 )
 
 lfc_cut <- 1.0
@@ -65,8 +65,7 @@ res_joint <- cbind(
 
 gene_groups <- define_gene_groups(res_joint)
 
-
-cancer_genes <- read.delim("TCGA/lung/cancerGeneList.tsv")
+cancer_genes <- read.delim("TCGA/cancerGeneList.tsv")
 
 oncogenes <- cancer_genes %>% dplyr::filter(Is.Oncogene=="Yes") %>% 
   dplyr::select(Hugo.Symbol) %>% 

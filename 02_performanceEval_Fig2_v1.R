@@ -3,6 +3,7 @@ setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse", "ggplot2", "edgeR", "VennDiagram", "pROC", "PRROC", "grid", "metaseqR2", "caret")
 sapply(pkgs, require, character.only = TRUE)
 source("deconveilCaseStudies/utils/utils.R")
+source("deconveilCaseStudies/utils/utils_plot.R")
 
 ### Performance evaluation: Accuracy | Precision | Specificity ###
 
@@ -74,43 +75,25 @@ auc_df <- auc_df %>%
 plot_df_final <- rbind(plot_df, auc_df)
 plot_df_final$SampleSize <- as.factor(plot_df_final$SampleSize)
 
-write.xlsx(plot_df_final, file = "deconveilCaseStudies/results/simulation_performance/performance_simulation_metrics.xlsx")
+#write.xlsx(plot_df_final, file = "deconveilCaseStudies/results/simulation_performance/performance_simulation_metrics.xlsx")
 saveRDS(plot_df_final, file = "deconveilCaseStudies/plots/main/Fig 2/rds/performance_simulation_metrics.rds")
 
 
 # Performance metrics plot #
 
+plot_df_final <- readRDS("deconveilCaseStudies/plots/main/Fig 2/rds/performance_simulation_metrics.rds")
+
 method_colors <- c("DeConveil" = "#ED665D", "PyDESeq2" = "#67BF5C", "edgeR" = "#729ECE")
 plot_df_final <- plot_df_final %>%
   mutate(Metric = factor(Metric, levels = c("Accuracy", "Precision", "Specificity", "AUC")))
 
-performance_plot <- ggplot(plot_df_final, aes(x = SampleSize, y = Mean, color = Method, group = Method)) +
-  geom_line(size = 1.4) +
-  geom_point(size = 2) +
-  geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD), width = 0.15, size = 0.7) +
-  ggh4x::facet_nested(factor(GeneSize) ~ factor(Metric)) +
-  #facet_wrap(~ Metric, scales = "free_y") +
-  labs(title = "", x = "sample size", y = "Performance metric") +
-  scale_x_discrete(labels = c("10", "20", "40", "100")) +   
-  scale_y_continuous(limits = c(0.7, 1), breaks = seq(0, 1, by = 0.1)) + 
-  scale_color_manual(values = method_colors) +
-  theme_bw()+
-  theme(
-    strip.text = element_text(size = 12, face = "plain", color = "black"),       
-    axis.title.x = element_text(size = 12, color = "black"),                     
-    axis.title.y = element_text(size = 12, color = "black"),                     
-    axis.text.x = element_text(size = 12),                      
-    axis.text.y = element_text(size = 12),                      
-    legend.text = element_text(size = 12, color = "black"),                      
-    legend.title = element_text(size = 12, color = "black"),
-    legend.position = "bottom"
-  )
-performance_plot
+line_plot <- performance_plot(plot_df_final, method_colors)
+line_plot
 
-ggsave("deconveilCaseStudies/plots/main/performance_plot.png", dpi = 500, width = 7.0, height = 6.0, plot = performance_plot)    
+ggsave("deconveilCaseStudies/plots/main/performance_plot.png", dpi = 500, width = 7.0, height = 6.0, plot = line_plot)    
 
 
-# Load and process Results CN-aware & CN-naive methods
+## Load and process Results CN-aware & CN-naive methods ##
 
 sample_sizes <- c(10, 20, 40, 100)
 gene_counts <- c(1000, 3000, 5000)
@@ -182,54 +165,6 @@ res_pydeseq <- process_results_pydeseq(results_list[["pydeseq_naive_100_5000"]])
 res_edge <- process_results_edge(results_list[["edge_naive_100_5000"]])
 res_deconveil <- process_results_pydeseq(results_list[["deconveil_aware_100_5000"]])
 
-#rownames_idx <- match(rownames(res_deconveil, rownames(res_edge)))
-#res_edge <- res_edge[rownames_idx,] %>% na.omit()
-
-
-
-## AUROC calculation | Supplementary  ##
-#true_labels <- rna_counts_list[["rna_100_5000"]]@variable.annotations[["differential.expression"]]
-#names(true_labels) <- rownames(rna_counts_list[["rna_100_5000"]]@count.matrix)
-
-#p1 <- as.data.frame(res_pydeseq$padj)
-#rownames(p1) <- rownames(res_pydeseq)
-#p2 <- as.data.frame(res_edge$padj)
-#rownames(p2) <- rownames(res_edge)
-#p3 <- as.data.frame(res_deconveil$padj)
-#rownames(p3) <- rownames(res_deconveil)
-
-#common_genes <- Reduce(intersect, list(rownames(p1), rownames(p2), rownames(p3)))
-#true_labels <- true_labels[common_genes]
-
-#p1 <- as.data.frame(p1[common_genes,]) 
-#p2 <- as.data.frame(p2[common_genes,]) 
-#p3 <- as.data.frame(p3[common_genes,]) 
-
-#p_values <- cbind(p1, p2, p3)
-#rownames(p_values) <- names(true_labels)
-#colnames(p_values) <- c("PyDESeq2", "edgeR", "DeConveil")
-
-
-# AUROC plot
-
-#roc <- diagplotRoc(
- 
-   #truth = true_labels, 
-  #p = p_values, 
-  #sig = 0.05, 
-  #x = "fpr", 
-  #y = "tpr", 
-  #output = "file", 
-  #line_colors = c("#00BA38", "#0000FF",  "#EE3F3FFF"),
-  #line_width = 7,
-  #plot_title = "Sample size: 100; Genes: 5000",
-  #axis_text_size = 2.0,
-  #legend_text_size = 1.6,
-  #font.main = 1,
-  #title_text_size = 2.4, 
-  #margin = c(6, 6, 6, 5),
-  #path = "deconveilCaseStudies/plots/supplementary/roc_100_5000.png"
-#)
 
 
 

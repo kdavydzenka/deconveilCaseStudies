@@ -186,3 +186,52 @@ validate_signature_on_metabric <- function(
     group = group_name
   ))
 }
+
+merge_cnv_rna <- function(cancer_type, cnv_df, rna_df) {
+  merged <- merge(rna_df, cnv_df, by = "gene") %>%
+    na.omit() %>%
+    dplyr::mutate(cancer_type = cancer_type)
+  return(merged)
+}
+
+# Paths to data
+paths <- list(
+  LUAD = list(cnv = "TCGA/lung/LUAD/cnv_tumor.RDS", rna = "TCGA/lung/LUAD/rna_counts.RDS"),
+  BRCA = list(cnv = "TCGA/BRCA/cnv_tumor.RDS", rna = "TCGA/BRCA/rna_counts.RDS"),
+  LUSC = list(cnv = "TCGA/LUSC/cnv_tumor.RDS", rna = "TCGA/LUSC/rna_counts.RDS"),
+  LIHC = list(cnv = "TCGA/LIHC/cnv_tumor.RDS", rna = "TCGA/LIHC/rna_counts.RDS")
+)
+
+# Run analysis for selected cancer types
+results <- lapply(names(paths), function(cancer) {
+  message("Processing ", cancer)
+  cnv <- process_cnv(cancer, paths[[cancer]]$cnv)
+  rna <- process_rna(cancer, paths[[cancer]]$rna, cnv$gene)
+  merge_cnv_rna(cancer, cnv, rna)
+})
+
+# Combine all results except LUAD for the final plot (LUAD often used separately)
+p_all <- do.call(rbind, results[names(results) != "LUAD"])
+p_luad <- results[["LUAD"]]
+
+# Plotting
+p_all$cnv <- factor(p_all$cnv, levels = c("1", "2", "3", "4", "5"))
+colors <- c("1" = "dodgerblue1", "2" = "darkgray", "3" = "green4", "4" = "coral3", "5" = "hotpink3")
+
+ggplot(p_all, aes(x = cnv, y = zscore_mean, color = cnv)) +
+  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, notch = FALSE) +
+  labs(x = "CNV group", y = "mRNA Z-score") +
+  facet_wrap(~cancer_type) +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  theme(
+    strip.text = element_text(size = 12, face = "plain", color = "black"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5)
+  )
+
+
+
+
