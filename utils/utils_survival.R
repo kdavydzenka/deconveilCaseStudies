@@ -115,122 +115,100 @@ fit_lasso_and_score <- function(rna_data, clinical_data, significant_genes, pval
 }
 
 
-validate_signature_on_metabric <- function(
-    rna_metabric,
-    cn_metabric,
-    clinical_metabric,
-    gene_set,
-    lasso_coefs_df,
-    selected_genes,
-    normalize_cnv = TRUE,
-    group_name = "group"
-) {
-  # Subset and normalize gene expression
-  common_genes <- intersect(rownames(rna_metabric), gene_set)
-  if (length(common_genes) == 0) stop("No common genes between RNA and provided gene_set.")
-  rna_subset <- rna_metabric[common_genes, , drop = FALSE]
+calculate_cindex <- function(rna, clinical, lasso_coefs_df, 
+                             lasso_coef_col = "coef", dataset_name = "Dataset", 
+                             transform_rna = FALSE, 
+                             genes_are_rows = TRUE,
+                             clinical_id_col = "patientID",
+                             time_col = "time",
+                             event_col = "event") {
   
-  if (normalize_cnv && !is.null(cn_metabric)) {
-    cn_subset <- cn_metabric[common_genes, colnames(rna_subset), drop = FALSE]
-    rna_subset <- rna_subset * cn_subset
-  }
+  cat("Calculating C-index for:", dataset_name, "\n")
   
-  # Transpose and add patientID
-  rna_df <- as.data.frame(t(rna_subset)) %>%
-    dplyr::mutate(patientID = rownames(.))
-  
-  # Merge with clinical data
-  merged_df <- merge(clinical_metabric, rna_df, by = "patientID")
-  merged_df <- merged_df %>% dplyr::filter(!is.na(time), !is.na(event))
-  
-  if (nrow(merged_df) == 0) stop("Merged dataset has 0 rows after removing NAs in clinical data.")
-  
-  # Match selected genes
-  matching_genes <- intersect(selected_genes, colnames(merged_df))
-  if (length(matching_genes) == 0) stop("No matching genes found in merged data.")
-  
-  # Extract coefficients
-  if (is.null(dim(lasso_coefs_df))) {
-    lasso_coefs_sub <- lasso_coefs_df[matching_genes]
-  } else {
-    lasso_coefs_sub <- lasso_coefs_df[matching_genes, , drop = FALSE]
-    if (ncol(lasso_coefs_sub) == 1) {
-      lasso_coefs_sub <- as.vector(lasso_coefs_sub[, 1])
-      names(lasso_coefs_sub) <- matching_genes
-    } else {
-      stop("lasso_coefs_df has unexpected structure with multiple columns.")
+  # Optional VST transform (expect rna genes x samples)
+  if (transform_rna) {
+    if (!requireNamespace("DESeq2", quietly = TRUE)) {
+      stop("DESeq2 package is required for transform_rna = TRUE.")
     }
+    rna <- DESeq2::varianceStabilizingTransformation(as.matrix(rna))
   }
   
-  # Calculate risk score
-  risk_input <- as.matrix(merged_df[, matching_genes, drop = FALSE])
-  risk_score <- as.vector(risk_input %*% lasso_coefs_sub)
-  if (all(is.na(risk_score))) stop("Risk score calculation returned all NAs.")
+  # If genes are rows, transpose to samples x genes (needed for matrix mult)
+  if (genes_are_rows) {
+    rna <- t(rna)
+  }
   
-  merged_df$risk_score <- risk_score
-  merged_df <- merged_df[!is.na(merged_df$risk_score), ]
+  # Extract gene names from RNA and LASSO
+  gene_names_rna <- colnames(rna)
+  gene_names_lasso <- rownames(lasso_coefs_df)
   
-  if (nrow(merged_df) == 0) stop("All patients were removed due to NA risk scores.")
+  # Find matching genes and their positions (match keeps order)
+  matching_idx_rna <- match(gene_names_lasso, gene_names_rna)
+  matched_genes <- gene_names_lasso[!is.na(matching_idx_rna)]
+  matching_idx_rna <- matching_idx_rna[!is.na(matching_idx_rna)]
   
-  # Final steps
-  merged_df$risk_group <- ifelse(risk_score > median(risk_score), "High", "Low")
-  merged_df$event <- as.numeric(as.character(merged_df$event))
-  merged_df$time <- as.numeric(as.character(merged_df$time))
+  cat("Genes in RNA:", length(gene_names_rna), "\n")
+  cat("Genes in LASSO model:", length(gene_names_lasso), "\n")
+  cat("Matching genes:", length(matched_genes), "\n")
   
-  surv_obj <- survival::Surv(merged_df$time, merged_df$event)
-  surv_fit <- survival::survfit(surv_obj ~ risk_group, data = merged_df)
+  if (length(matched_genes) < 2) {
+    stop("Fewer than 2 matching genes found between RNA and LASSO coefficients.")
+  }
+  
+  if (length(matched_genes) < length(gene_names_lasso)) {
+    warning(sprintf("Only %d out of %d LASSO genes matched RNA data. Proceeding with matched genes.",
+                    length(matched_genes), length(gene_names_lasso)))
+  }
+  
+  # Subset RNA and coefficients by matched genes
+  rna_selected <- rna[, matching_idx_rna, drop = FALSE]
+  coefs_selected <- lasso_coefs_df[matched_genes, lasso_coef_col]
+  
+  # Calculate prognostic score (samples x 1)
+  prognostic_score <- as.matrix(rna_selected) %*% as.numeric(coefs_selected)
+  colnames(prognostic_score) <- "progn_score"
+  
+  # Prepare clinical data
+  stopifnot(clinical_id_col %in% colnames(clinical),
+            time_col %in% colnames(clinical),
+            event_col %in% colnames(clinical))
+  
+  # Match samples in clinical and prognostic score
+  clinical_samples <- clinical[[clinical_id_col]]
+  score_samples <- rownames(prognostic_score)
+  matching_samples <- intersect(clinical_samples, score_samples)
+  
+  if (length(matching_samples) == 0) {
+    stop("No matching samples between RNA and clinical data.")
+  }
+  
+  # Filter clinical and prognostic score by matching samples (keep order)
+  clinical_idx <- match(matching_samples, clinical_samples)
+  score_idx <- match(matching_samples, score_samples)
+  
+  clinical_sub <- clinical[clinical_idx, , drop = FALSE]
+  prognostic_score_sub <- prognostic_score[score_idx, , drop = FALSE]
+  
+  # Add prognostic score column to clinical data
+  clinical_sub$progn_score <- prognostic_score_sub[, 1]
+  
+  # Ensure numeric survival columns
+  clinical_sub[[time_col]] <- as.numeric(clinical_sub[[time_col]])
+  clinical_sub[[event_col]] <- as.numeric(as.character(clinical_sub[[event_col]]))
+  
+  # Fit Cox model and calculate C-index
+  cox_model <- survival::coxph(survival::Surv(clinical_sub[[time_col]], clinical_sub[[event_col]]) ~ progn_score, data = clinical_sub)
+  cindex <- survival::concordance(cox_model)
+  
+  cat(sprintf("C-index for %s: %.4f\n", dataset_name, cindex$concordance))
   
   return(list(
-    data = merged_df,
-    surv_fit = surv_fit,
-    group = group_name
+    model = cox_model,
+    cindex = cindex$concordance,
+    n_genes = length(matched_genes),
+    genes = matched_genes
   ))
 }
-
-merge_cnv_rna <- function(cancer_type, cnv_df, rna_df) {
-  merged <- merge(rna_df, cnv_df, by = "gene") %>%
-    na.omit() %>%
-    dplyr::mutate(cancer_type = cancer_type)
-  return(merged)
-}
-
-# Paths to data
-paths <- list(
-  LUAD = list(cnv = "TCGA/lung/LUAD/cnv_tumor.RDS", rna = "TCGA/lung/LUAD/rna_counts.RDS"),
-  BRCA = list(cnv = "TCGA/BRCA/cnv_tumor.RDS", rna = "TCGA/BRCA/rna_counts.RDS"),
-  LUSC = list(cnv = "TCGA/LUSC/cnv_tumor.RDS", rna = "TCGA/LUSC/rna_counts.RDS"),
-  LIHC = list(cnv = "TCGA/LIHC/cnv_tumor.RDS", rna = "TCGA/LIHC/rna_counts.RDS")
-)
-
-# Run analysis for selected cancer types
-results <- lapply(names(paths), function(cancer) {
-  message("Processing ", cancer)
-  cnv <- process_cnv(cancer, paths[[cancer]]$cnv)
-  rna <- process_rna(cancer, paths[[cancer]]$rna, cnv$gene)
-  merge_cnv_rna(cancer, cnv, rna)
-})
-
-# Combine all results except LUAD for the final plot (LUAD often used separately)
-p_all <- do.call(rbind, results[names(results) != "LUAD"])
-p_luad <- results[["LUAD"]]
-
-# Plotting
-p_all$cnv <- factor(p_all$cnv, levels = c("1", "2", "3", "4", "5"))
-colors <- c("1" = "dodgerblue1", "2" = "darkgray", "3" = "green4", "4" = "coral3", "5" = "hotpink3")
-
-ggplot(p_all, aes(x = cnv, y = zscore_mean, color = cnv)) +
-  geom_boxplot(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, notch = FALSE) +
-  labs(x = "CNV group", y = "mRNA Z-score") +
-  facet_wrap(~cancer_type) +
-  scale_color_manual(values = colors) +
-  theme_bw() +
-  theme(
-    strip.text = element_text(size = 12, face = "plain", color = "black"),
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    legend.position = "none",
-    plot.title = element_text(hjust = 0.5)
-  )
 
 
 

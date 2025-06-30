@@ -146,39 +146,59 @@ rna_processing <- function(dataset_name, data_path, cnv_filt) {
     names(rna_norm) <- paste(x,"-11A")
     x <- colnames(rna_tum)
     names(rna_tum) <- paste(x,"-01A")  
-  } else if (dataset_name == "HNSC_rna") {
-    rna <- readRDS(data_path)
-    #colnames(rna) <- gsub(pattern = "\\.", replacement = "-", colnames(rna))
-    rna_norm <- rna %>% select(1:21)
-    rna_tum <- rna %>% select(22:42)
-    colnames(rna_norm) <- stringr::str_sub(colnames(rna_norm),1,12)
-    colnames(rna_tum) <- stringr::str_sub(colnames(rna_tum),1,12)
-    cnv_tumor <- as.data.frame(cnv_tumor)
-    colnames(cnv_tumor) <- stringr::str_sub(colnames(cnv_tumor),1,12)
-    rna_tum <- rna_tum[,colnames(rna_tum) %in% colnames(cnv_tumor)]
-    rna_norm <- rna_norm[,colnames(rna_norm) %in% colnames(cnv_tumor)]
-    x <- colnames(rna_norm)
-    names(rna_norm) <- paste(x,"-11A")
-    x <- colnames(rna_tum)
-    names(rna_tum) <- paste(x,"-01A")  
-  } else if (dataset_name == "COLON_rna") {
-    rna <- readRDS(data_path)
-    #colnames(rna) <- gsub(pattern = "\\.", replacement = "-", colnames(rna))
-    rna_norm <- rna %>% select(1:12)
-    rna_tum <- rna %>% select(13:24)
-    colnames(rna_norm) <- stringr::str_sub(colnames(rna_norm),1,12)
-    colnames(rna_tum) <- stringr::str_sub(colnames(rna_tum),1,12)
-    cnv_tumor <- as.data.frame(cnv_tumor)
-    colnames(cnv_tumor) <- stringr::str_sub(colnames(cnv_tumor),1,12)
-    rna_tum <- rna_tum[,colnames(rna_tum) %in% colnames(cnv_tumor)]
-    rna_norm <- rna_norm[,colnames(rna_norm) %in% colnames(cnv_tumor)]
-    x <- colnames(rna_norm)
-    names(rna_norm) <- paste(x,"-11A")
-    x <- colnames(rna_tum)
-    names(rna_tum) <- paste(x,"-01A")  
   }  else {
     stop("Dataset name not recognized")
   }
+  return(list(rna_norm, rna_tum))
+}
+
+rna_processing <- function(dataset_name, data_path, cnv_filt) {
+  # Define number of normal/tumor samples for each dataset
+  sample_ranges <- list(
+    LUAD = list(norm = 1:45, tumor = 46:90),
+    LUSC = list(norm = 1:51, tumor = 52:102),
+    BRCA = list(norm = 1:110, tumor = 111:220),
+    LIHC = list(norm = 1:50, tumor = 51:100),
+    HNSC = list(norm = 1:21, tumor = 22:42),
+    COLON = list(norm = 1:12, tumor = 13:24)
+  )
+  
+  # Extract cancer code prefix (before _rna)
+  cancer_code <- toupper(sub("_rna$", "", dataset_name))
+  
+  if (!(cancer_code %in% names(sample_ranges))) {
+    stop("Dataset name not recognized: ", dataset_name)
+  }
+  
+  # Read data
+  rna <- readRDS(data_path)
+  
+  # Extract sample indices
+  norm_idx <- sample_ranges[[cancer_code]]$norm
+  tumor_idx <- sample_ranges[[cancer_code]]$tumor
+  
+  # Select columns for normal and tumor
+  rna_norm <- rna %>% dplyr::select(all_of(norm_idx))
+  rna_tum <- rna %>% dplyr::select(all_of(tumor_idx))
+  
+  # Clean column names (truncate to 12 chars)
+  colnames(rna_norm) <- str_sub(colnames(rna_norm), 1, 12)
+  colnames(rna_tum) <- str_sub(colnames(rna_tum), 1, 12)
+  
+  # Clean CNV filter column names if not NULL
+  if (!is.null(cnv_filt)) {
+    cnv_filt <- as.data.frame(cnv_filt)
+    colnames(cnv_filt) <- str_sub(colnames(cnv_filt), 1, 12)
+    
+    # Keep only columns in CNV filter intersection
+    rna_norm <- rna_norm[, colnames(rna_norm) %in% colnames(cnv_filt), drop = FALSE]
+    rna_tum <- rna_tum[, colnames(rna_tum) %in% colnames(cnv_filt), drop = FALSE]
+  }
+  
+  # Append sample type suffixes to colnames
+  colnames(rna_norm) <- paste0(colnames(rna_norm), "-11A")
+  colnames(rna_tum) <- paste0(colnames(rna_tum), "-01A")
+  
   return(list(rna_norm, rna_tum))
 }
 

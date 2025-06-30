@@ -248,3 +248,58 @@ sankey_plot <- function(data,
     ) +
     ggtitle(title)
 }
+
+
+plot_survival <- function(survfit_obj, df, title = "Model") {
+  # Calculate p-value
+  pval <- surv_pvalue(survfit_obj, data = df)$pval
+  pval_label <- paste0("p = ", signif(pval, 3))
+  
+  # Position for p-value annotation
+  x_pos <- 0.05 * max(df$time, na.rm = TRUE)
+  y_pos <- 0.2
+  
+  # Create plot
+  plot <- ggsurvplot(
+    survfit_obj,
+    data = df,
+    pval = FALSE,
+    conf.int = TRUE,
+    risk.table = TRUE,
+    palette = c("#F39B7FFF", "#3C5488FF"),
+    title = title,
+    xlab = "Time (days)",
+    ylab = "Survival probability",
+    font.main = c(12, "bold", "black"),
+    font.x = c(12, "plain"),
+    font.y = c(12, "plain"),
+    font.tickslab = c(12, "plain"),
+    legend = "bottom",
+    legend.title = "Risk group",
+    legend.labs = c("High risk", "Low risk"),
+    font.legend = c(12, "plain"),
+    risk.table.height = 0.25,
+    risk.table.y.text = TRUE,
+    risk.table.fontsize = 6,
+    risk.table.title = "Number at risk",
+    risk.table.col = "strata",
+    ggtheme = theme_classic2() +
+      theme(strip.text = element_text(size = 12, face = "plain"),
+            plot.title = element_text(hjust = 0.5)),
+    risk.table.title.fontface = "bold"
+  )
+  
+  # Annotate p-value and adjust font sizes
+  plot$plot <- plot$plot +
+    annotate("text", x = x_pos, y = y_pos, label = pval_label, size = 4, hjust = 0) +
+    theme(legend.text = element_text(size = 12))
+  
+  plot$table <- plot$table + 
+    theme(
+      axis.text.x = element_text(size = 12),
+      strip.text = element_text(size = 12, face = "plain"),
+      text = element_text(size = 12)
+    )
+  
+  return(plot)
+}

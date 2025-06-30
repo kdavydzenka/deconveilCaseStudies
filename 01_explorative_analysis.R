@@ -155,6 +155,7 @@ rna_results <- lapply(cancer_types, function(cancer) {
 })
 names(rna_results) <- cancer_types
 
+
 # Plot
 
 prepare_plot_df <- function(cancer) {

@@ -74,10 +74,10 @@ saveRDS(sig_genes_naive, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_s
 
 ## Fit LASSO and calculate prognostic score ##
 
-sig_genes_ds <- readRDS("deconveilCaseStudies/results/brca_prognostic/cox_significant_dsg.RDS")
-sig_genes_dins <- readRDS("deconveilCaseStudies/results/brca_prognostic/cox_significant_dig.RDS")
-sig_genes_dcomp <- readRDS("deconveilCaseStudies/results/brca_prognostic/cox_significant_dcg.RDS")
-sig_genes_naive <- readRDS("deconveilCaseStudies/results/brca_prognostic/cox_significant_CNnaive.RDS")
+sig_genes_ds <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dsg.RDS")
+sig_genes_dins <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dig.RDS")
+sig_genes_dcomp <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dcg.RDS")
+sig_genes_naive <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_CNnaive.RDS")
 
 lasso_dsg <- fit_lasso_and_score(data_ds$rna, data_ds$clinical, sig_genes_ds)
 lasso_dig <- fit_lasso_and_score(data_dins$rna, data_dins$clinical, sig_genes_dins)
@@ -88,6 +88,7 @@ saveRDS(lasso_dsg, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dsg.R
 saveRDS(lasso_dig, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dig.RDS")
 saveRDS(lasso_dcg, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dcg.RDS")
 saveRDS(lasso_naive, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_CNnaive.RDS")
+
 
 ## Forest plot ##
 
@@ -173,119 +174,94 @@ saveRDS(clinical_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/clini
 
 
 # Subset METABRIC data for the same genes used in TCGA-BRCA
-rna_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
-cn_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
-clinical_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
 
-rna_metabric_ds <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_ds)),]
-cn_metabric_ds <- cn_metabric[(rownames(cn_metabric) %in% rownames(rna_ds)),]
+process_metabric <- function(rna_input, lasso_model, label = "DS") {
+  message("Processing METABRIC for: ", label)
+  
+  # Load METABRIC RNA and CN data
+  rna_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
+  cn_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
+  clinical_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
+  
+  # Filter for genes in input
+  gene_filter <- intersect(rownames(rna_metabric), rownames(rna_input))
+  rna_filtered <- rna_metabric[gene_filter, , drop = FALSE]
+  cn_filtered <- cn_metabric[gene_filter, , drop = FALSE]
+  
+  # Match samples
+  shared_samples <- intersect(colnames(rna_filtered), colnames(cn_filtered))
+  rna_filtered <- rna_filtered[, shared_samples, drop = FALSE]
+  cn_filtered <- cn_filtered[, shared_samples, drop = FALSE]
+  
+  # Transpose and add patient ID
+  rna_df <- as.data.frame(t(rna_filtered))
+  rna_df$patientID <- rownames(rna_df)
+  
+  # Merge with clinical data
+  metabric_combined <- merge(clinical_metabric, rna_df, by = "patientID")
+  
+  # Extract and align genes
+  selected_genes <- lasso_model[["selected_genes"]]
+  genes_in_data <- intersect(selected_genes, colnames(metabric_combined))
+  metabric_filtered <- metabric_combined[, genes_in_data, drop = FALSE]
+  
+  # Get lasso coefficients
+  coefs <- lasso_model[["lasso_coefficients"]]
+  
+  # If coefs is a data frame with 1 column, convert to named vector
+  if (is.data.frame(coefs)) {
+    if (ncol(coefs) == 1) {
+      coefs <- coefs[[1]]
+      names(coefs) <- rownames(lasso_model[["lasso_coefficients"]])
+    } else {
+      stop("Expected a single-column data frame for coefficients.")
+    }
+  }
+  
+  # Align coefficient vector with gene order
+  coefs <- coefs[genes_in_data]
+  
+  # Compute risk score
+  metabric_risk_scores <- as.matrix(metabric_filtered) %*% as.numeric(coefs)
+  metabric_combined$risk_score <- as.vector(metabric_risk_scores)
+  metabric_combined <- metabric_combined %>% na.omit()
+  
+  # Stratify patients
+  metabric_combined$risk_group <- ifelse(
+    metabric_combined$risk_score > median(metabric_combined$risk_score),
+    "High", "Low"
+  )
+  
+  metabric_combined$event <- as.numeric(as.character(metabric_combined$event))
+  
+  # Fit survival model
+  metabric_survfit <- survfit(Surv(time, event) ~ risk_group, data = metabric_combined)
+  
+  return(list(
+    data = metabric_combined,
+    survfit = metabric_survfit
+  ))
+}
 
-rna_metabric_ds <- rna_metabric_ds[,(colnames(rna_metabric_ds) %in% colnames(cn_metabric_ds))]
-cn_metabric_ds <- cn_metabric_ds[,(colnames(cn_metabric_ds) %in% colnames(rna_metabric_ds))]
-idx <- match(colnames(rna_metabric_ds), colnames(cn_metabric_ds))
-cn_metabric_ds <- cn_metabric_ds[,idx]
-
-#rna_metabric_dins <- rna_metabric_dins * cn_metabric_dins
-rna_metabric_ds <- rna_metabric_ds %>% 
-  as.data.frame() %>% 
-  dplyr::mutate(patientID = rownames(rna_metabric_ds))
-
-metabric_combined <- merge(clinical_metabric, rna_metabric_ds, by = "patientID")
-
-
-# CN-naive
-rna_metabric_naive <- rna_metabric[(rownames(rna_metabric) %in% rownames(rna_CNnaive)),]
-rna_metabric_naive <- t(rna_metabric_naive)
-rna_metabric_naive <- rna_metabric_naive %>% 
-  as.data.frame() %>% 
-  dplyr::mutate(patientID = rownames(rna_metabric_naive))
-
-metabric_combined <- merge(clinical_metabric, rna_metabric_naive, by = "patientID")
-
-
-# Ensure Matching Gene Names
-
-genes_in_lasso <- lasso_dsg[["selected_genes"]]
-genes_in_metabric <- colnames(metabric_combined)
-matching_genes <- intersect(genes_in_lasso, genes_in_metabric)
-matching_genes <- intersect(colnames(rna_metabric_ds), lasso_dsg[["selected_genes"]])
-metabric_filtered <- metabric_combined[, matching_genes]
-lasso_coefficients <- lasso_dsg[["lasso_coefficients"]][matching_genes,]
-
-# Calculate the risk score for METABRIC data using the LASSO model coefficients
-metabric_risk_scores <- as.matrix(metabric_filtered) %*% lasso_coefficients
-metabric_combined$risk_score <- as.vector(metabric_risk_scores)
-metabric_combined <- metabric_combined %>% na.omit()
-
-# Stratify METABRIC patients into high/low risk groups based on median risk score
-metabric_combined$risk_group <- ifelse(metabric_combined$risk_score > median(metabric_combined$risk_score), "High", "Low")
-metabric_combined$event <- as.numeric(as.character(metabric_combined$event))
-metabric_survfit <- survfit(Surv(time, event) ~ risk_group, data = metabric_combined)
-
-# Plot
-pval <- surv_pvalue(metabric_survfit, data = metabric_combined)$pval
-pval_label <- paste0("p = ", signif(pval, 3))
-
-surv_plot <- ggsurvplot(
-  metabric_survfit,
-  data = metabric_combined,
-  pval = FALSE,  
-  conf.int = TRUE,
-  risk.table = TRUE,
-  palette = c("#F39B7FFF", "#3C5488FF"),
-  title = "DSGs",
-  xlab = "Time (days)",
-  ylab = "Survival probability",
-  font.main = c(12, "bold", "black"),
-  font.x = c(12, "plain"),
-  font.y = c(12, "plain"),
-  font.tickslab = c(12, "plain"),
-  legend = "bottom",
-  legend.title = "Risk group",
-  legend.labs = c("High risk", "Low risk"),
-  font.legend = c(12, "plain"),
-  risk.table.height = 0.25,
-  risk.table.y.text = TRUE,
-  risk.table.fontsize = 6,
-  risk.table.title = "Number at risk",
-  risk.table.col = "strata",
-  ggtheme = theme_classic2() +
-    theme(strip.text = element_text(size = 12, face = "plain"),
-          plot.title = element_text(hjust = 0.5)),
-  risk.table.title.fontface = "bold"
+results_list <- list(
+  ds = process_metabric(rna_ds, lasso_dsg, "DS"),
+  dins = process_metabric(rna_dins, lasso_dig, "DINS"),
+  dcomp = process_metabric(rna_dcomp, lasso_dcg, "DCOMP"),
+  naive = process_metabric(rna_CNnaive, lasso_dsg, "CN-naive")
 )
 
-x_pos <- 0.05 * max(metabric_combined$time, na.rm = TRUE)
-y_pos <- 0.2
-
-surv_plot$plot <- surv_plot$plot +
-  annotate("text", x = x_pos, y = y_pos, label = pval_label, size = 4, hjust = 0) +
-  theme(legend.text = element_text(size = 12))
-
-surv_plot$table <- surv_plot$table + 
-  theme(
-    axis.text.x = element_text(size = 12),
-    strip.text = element_text(size = 12, face = "plain"), 
-    text = element_text(size = 12)  
-  )
-
-surv_plot
-
-#surv_plot_dcg <- surv_plot
-#surv_plot_dsg <- surv_plot
-#surv_plot_naive <- surv_plot
-#surv_plot_dig <- surv_plot
+# Plot
+surv_plot_dsg <- plot_survival(results_list$ds$survfit, results_list$ds$data, title = "DSGs")
+surv_plot_dig <- plot_survival(results_list$dins$survfit, results_list$dins$data, title = "DIGs")
+surv_plot_dcg <- plot_survival(results_list$dcomp$survfit, results_list$dcomp$data, title = "DCGs")
+surv_plot_naive <- plot_survival(results_list$naive$survfit, results_list$naive$data, title = "CN-naive")
 
 surv_plot_dsg$plot <- surv_plot_dsg$plot + theme(legend.position = "none")
 surv_plot_dig$plot <- surv_plot_dig$plot + theme(legend.position = "none")
 surv_plot_naive$plot <- surv_plot_naive$plot + theme(legend.position = "none")
 
-plot1 <- surv_plot_dsg$plot
-plot2 <- surv_plot_dig$plot
-plot3 <- surv_plot_dcg$plot
-plot4 <- surv_plot_naive$plot
-
-joint_survival <- plot1 | plot2 | plot3 | plot4
+# Combine plots using patchwork
+joint_survival <- surv_plot_dsg$plot | surv_plot_dig$plot | surv_plot_dcg$plot | surv_plot_naive$plot
 joint_survival
 
 ggsave("deconveilCaseStudies/plots/main/Fig 5/joint_survival.png", dpi = 500, width = 12.0, height = 4.0, plot = joint_survival)
@@ -293,38 +269,64 @@ ggsave("deconveilCaseStudies/plots/main/Fig 5/joint_survival.png", dpi = 500, wi
 
 ## Calculate Concordance Index for both datasets ##
 
-# TCGA-BRCA #
-clinical <- clinical_data
-rna <- rna_log_norm  
-selected_genes <- rownames(lasso_coefs_df)[lasso_coefs_df$`1` != 0]  
-rna_selected <- rna[, selected_genes]
-prognostic_score_tcga <- as.matrix(rna_selected) %*% lasso_coefs[selected_genes, ]
-colnames(prognostic_score_tcga) <- "progn_score"
-clinical <- cbind(clinical, prognostic_score_tcga)
+# TCGA
+#rownames(clinical_data) <- clinical_data$patientID
+#tcga_results <- calculate_cindex(
+  #rna = rna_ds,
+  #clinical = clinical_data,
+  #lasso_coefs_df = lasso_dsg[["lasso_coefficients"]],
+  #lasso_coef_col = "coef",
+  #dataset_name = "TCGA-BRCA",
+  #transform_rna = TRUE
+#)
 
-clinical$time <- as.numeric(clinical$time)
-clinical$event <- as.numeric(as.character(clinical$event))
 
-cox_model_tcga <- coxph(Surv(time, event) ~ progn_score, data = clinical)
+# METABRIC
 
-cindex_cox_tcga <- concordance(cox_model_tcga)
-print(paste("C-index:", cindex_cox_tcga$concordance))
+for (name in names(results_list)) {
+  data <- results_list[[name]][["data"]]
+  
+  # Ensure the required column exists before setting rownames
+  if ("patientID" %in% colnames(data)) {
+    rownames(data) <- data[["patientID"]]
+    
+    # Remove survival and ID columns
+    data <- data[, !(colnames(data) %in% c("time", "event", "patientID")) ]
+    
+    # Transpose the data matrix
+    results_list[[name]][["data"]] <- t(data)
+  } else {
+    warning(paste("Skipping", name, ": 'patientID' column not found."))
+  }
+}
 
-# METABRIC #
-clinical_metabric <- clinical_metabric %>% remove_rownames() %>% column_to_rownames("patientID")
-rna_metabric <- rna_metabric_dcomp
+rownames(clinical_metabric) <- clinical_metabric$patientID
 
-matching_genes <- intersect(selected_genes, colnames(rna_metabric))
-rna_metabric_selected <- rna_metabric[,matching_genes]
+datasets_to_run <- c("ds", "dins", "dcomp", "naive")
 
-rna_metabric_selected <- rna_metabric_selected[ rownames(rna_metabric_selected) %in% rownames(clinical_metabric),]
-metabric_risk_scores <- as.matrix(rna_metabric_selected) %*% lasso_coefs_df[matching_genes, ]
-colnames(metabric_risk_scores) <- "progn_score"
-clinical_metabric <- merge(clinical_metabric, metabric_risk_scores, by = "row.names")
+metabric_results_list <- lapply(datasets_to_run, function(name) {
+  if (!is.null(results_list[[name]]) && !is.null(results_list[[name]][["data"]])) {
+    cat("Running calculate_cindex for:", name, "\n")
+    tryCatch({
+      calculate_cindex(
+        rna = results_list[[name]][["data"]],
+        clinical = clinical_metabric,
+        lasso_coefs_df = lasso_dsg[["lasso_coefficients"]],
+        lasso_coef_col = "coef",
+        dataset_name = paste0("METABRIC-", name),
+        transform_rna = FALSE
+      )
+    }, error = function(e) {
+      warning(paste("Error for dataset", name, ":", e$message))
+      return(NULL)
+    })
+  } else {
+    warning(paste("Skipping", name, ": 'data' not found"))
+    return(NULL)
+  }
+})
 
-clinical_metabric$event <- as.numeric(as.character(clinical_metabric$event))
-cox_model_metabric <- coxph(Surv(time, event) ~ progn_score, data = clinical_metabric)
+names(metabric_results_list) <- datasets_to_run
 
-cindex_cox_metabric <- concordance(cox_model_metabric)
-print(paste("C-index:", cindex_cox_metabric$concordance))
+
 
