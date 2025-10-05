@@ -568,16 +568,27 @@ process_cnv_data <- function(cnv_tumor, loss_threshold = 0.25) {
 }
 
 
+#annotate_results <- function(results, lfc_cut, pval_cut, method, tumor_type) {
+  #results %>%
+    #mutate(
+      #isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut),
+      #DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg")),
+      #method = method,
+      #tumor_type = tumor_type
+    #) 
+    #remove_rownames() %>%
+    #column_to_rownames(var = "X")
+#}
+
 annotate_results <- function(results, lfc_cut, pval_cut, method, tumor_type) {
   results %>%
     mutate(
       isDE = (abs(log2FoldChange) >= lfc_cut) & (padj <= pval_cut),
-      DEtype = if_else(!isDE, "n.s.", if_else(log2FoldChange > 0, "Up-reg", "Down-reg")),
+      DEtype = if_else(!isDE, "n.s.",
+                       if_else(log2FoldChange > 0, "Up-reg", "Down-reg")),
       method = method,
       tumor_type = tumor_type
-    ) %>%
-    remove_rownames() %>%
-    column_to_rownames(var = "X")
+    )
 }
 
 
