@@ -114,9 +114,9 @@ ggsave("deconveilCaseStudies/plots/supplementary/png/hist_pancancer.png", dpi = 
 # Read data files for a tumor type
 read_data <- function(tumor_type) {
   list(
-    res_pydeseq = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/res_CNnaive.csv")),
-    res_deconveil = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/res_CNaware.csv")),
-    cnv_tumor = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/cnv_tumor.csv")) %>%
+    res_pydeseq = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/old/res_CNnaive.csv")),
+    res_deconveil = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/old/res_CNaware.csv")),
+    cnv_tumor = read.csv(paste0("deconveilCaseStudies/results_tcga/", tumor_type, "/old/cnv_tumor.csv")) %>%
       remove_rownames() %>%
       column_to_rownames(var = "X") * 2
   )
@@ -219,8 +219,15 @@ saveRDS(v_plot_data_all, file = "deconveilCaseStudies/plots/supplementary/rds/vo
 
 # Generate Vocano plot
 
-gene_group_colors <- c("DIGs" = "#8F3931FF", "DSGs" = "#FFB977", "DCGs"="#FAE48BFF", "non-DEGs" = "#ADB6B6FF")  
-cnv_colors <- c("loss" = "#0073C299", "neutral" = "#86868699", "gain" = "#cecb76", "amplification" = "#DC0000B2")
+gene_group_colors <- c("DIGs" = "#8F3931FF", 
+                       "DSGs" = "#FFB977", 
+                       "DCGs"="#FAE48BFF", 
+                       "non-DEGs" = "#ADB6B6FF")  
+
+cnv_colors <- c("loss" = "#0073C299", 
+                "neutral" = "#86868699", 
+                "gain" = "#cecb76", 
+                "amplification" = "#DC0000B2")
 
 v_plot_data_all$method <- factor(v_plot_data_all$method, 
                            levels = c("CN naive", "CN aware"),
@@ -666,6 +673,12 @@ saveRDS(data_ggforce, file = "deconveilCaseStudies/plots/supplementary/rds/plot_
 
 # Plot
 g_group_colors <- c("Down-reg" = "#3C5488B2", "n.s." = "lightgray", "Up-reg" = "#CC7677")
+
+data_ggforce <- data_ggforce %>%
+  mutate(
+    x = factor(x, levels = c("CN_aware", "CN_naive")),
+    x_num = as.numeric(x)   # 1, 2
+  )
 
 sankey <- sankey_plot(
   data = data_ggforce,

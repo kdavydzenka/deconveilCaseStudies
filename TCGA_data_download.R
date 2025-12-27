@@ -6,7 +6,36 @@ pkgs <- c("tidyverse", "TCGAbiolinks", "SummarizedExperiment", "sesameData", "se
 sapply(pkgs, require, character.only = TRUE)
 
 # Define project
-project <- "TCGA-BRCA"
+list_of_datasets <- c("TCGA-BRCA", 
+                      "TCGA-ESCA", #Esophageal
+                      "TCGA-STAD", #stomac
+                      "TCGA-COAD", #colon
+                      "TCGA-READ", #rectal 
+                      "TCGA-LUAD", 
+                      "TCGA-LUSC", 
+                      "TCGA-CESC", #ovary, cervix
+                      "TCGA-OV",   #ovarian
+                      "TCGA-UCS",  #uterine
+                      "TCGA-UCEC", #uterine
+                      "TCGA-HNSC", 
+                      "TCGA-KIRP", #kidney
+                      "TCGA-KIRC", #kidney
+                      "TCGA-KICH", #kidney
+                      "TCGA-LIHC",
+                      "TCGA-SKCM", #melanoma
+                      "TCGA-THCA", #thyroid
+                      "TCGA-LGG",  #brain-glioma
+                      "TCGA-GBM",  #glioblastoma
+                      "TCGA-BLCA", #bladder
+                      "TCGA-DLBC", #B-cell limphoma
+                      "TCGA-PRAD", #prostate
+                      "TCGA-PAAD") #pancreas
+
+# TCGA molecular subtypes
+# TCGA-BRCA - LumA/LumB, Her2, Basal
+
+
+project <- "TCGA-PAAD"
 
 ## Build queries ##
 
@@ -62,9 +91,9 @@ query_rna_normal <- GDCquery(
 
 ## Download data ##
 
-GDCdownload(query_TCGA_cnv)
-GDCdownload(query_TCGA_rna_tumor)
-GDCdownload(query_TCGA_rna_normal)
+GDCdownload(query_cnv)
+GDCdownload(query_rna_tumor)
+GDCdownload(query_rna_normal)
 #GDCdownload(query_mirna)
 #GDCdownload(query_met)
 
@@ -82,10 +111,12 @@ prepare_expression <- function(query) {
   expr <- assay(se, "unstranded") %>% as.data.frame()
   gene_ids <- rowData(se)$gene_name
   expr <- cbind(GeneID = gene_ids, expr)
-  expr <- expr[!duplicated(expr$GeneID), ] %>%
-    column_to_rownames("GeneID") %>%
-    na.omit()
-  colnames(expr) <- substr(colnames(expr), 1, 12)
+  expr <- expr %>% 
+    distinct(GeneID, .keep_all = TRUE) %>%
+    drop_na() %>%
+    as.data.frame() %>%
+    { rownames(.) <- .$GeneID; .$GeneID <- NULL; . }
+  #colnames(expr) <- substr(colnames(expr), 1, 12)
   return(expr)
 }
 
@@ -94,10 +125,13 @@ prepare_cnv <- function(query) {
   cnv <- assay(se, "copy_number") %>% as.data.frame()
   gene_ids <- rowData(se)$gene_name
   cnv <- cbind(GeneID = gene_ids, cnv)
-  cnv <- cnv[!duplicated(cnv$GeneID), ] %>%
-    column_to_rownames("GeneID") %>%
-    na.omit()
-  colnames(cnv) <- substr(colnames(cnv), 1, 12)
+  cnv <- cnv %>% 
+    distinct(GeneID, .keep_all = TRUE) %>%
+    drop_na() %>%
+    as.data.frame() %>%
+    { rownames(.) <- .$GeneID; .$GeneID <- NULL; . }
+    #column_to_rownames("GeneID") 
+  #colnames(cnv) <- substr(colnames(cnv), 1, 12)
   return(cnv)
 }
 
@@ -125,13 +159,13 @@ colnames(cnv_tum) <- paste0(colnames(cnv_tum), "-11A")
 
 
 ## Download Clinical data ##
-colnames(rna_tum) <- substr(colnames(rna_tum), 1, 12)
+colnames(rna_tum) <- substr(colnames(rna_tum), 1, 16)
 patient_barcodes <- c(colnames(rna_tum))
 
-clinical_query <- TCGAbiolinks::GDCquery(project = "TCGA-HNSC", 
+clinical_query <- TCGAbiolinks::GDCquery(project = project, 
                                          data.category = "Clinical",
-                                         data.format = "bcr xml", 
-                                         barcode = patient_barcodes)
+                                         data.format = "bcr xml")
+                                         #barcode = patient_barcodes)
 GDCdownload(clinical_query)
 
 clinical_data <- TCGAbiolinks::GDCprepare_clinic(clinical_query, clinical.info = "patient")

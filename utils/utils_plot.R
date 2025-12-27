@@ -216,11 +216,11 @@ gene_barplot <- function(distribution_summary, gene_type_colors) {
 }
 
 sankey_plot <- function(data,
-                        x_var = "x",
+                        x_var = "x_num",
                         id_var = "id",
                         split_var = "y",
                         value_var = "freq",
-                        fill_var = "CN_naive",
+                        fill_var = "class_BH",
                         group_colors = NULL,
                         x_labels = c("CN-naive", "CN-aware"),
                         title = NULL) {
@@ -237,7 +237,7 @@ sankey_plot <- function(data,
     scale_x_continuous(breaks = seq_along(x_labels), labels = x_labels) +
     theme_classic() +
     theme(
-      legend.position = "bottom",
+      legend.position = "right",
       legend.title = element_text(size = 15, face = "plain"),
       legend.text = element_text(size = 13),
       panel.grid.major = element_blank(),
