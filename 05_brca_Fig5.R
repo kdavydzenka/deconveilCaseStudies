@@ -1,15 +1,16 @@
 ### Survival prognostic model using TCGA-BRCA dataset ###
 
-setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
+setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/deconveilCaseStudies/")
 pkgs <- c("tidyverse", "survival", "glmnet", "survminer", "survcomp", "DESeq2", "forestplot", 
           "caret", "randomForestSRC", "gridExtra", "RColorBrewer", "patchwork")
+
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils/utils_plot.R")
-source("deconveilCaseStudies/utils/utils_survival.R")
+source("utils/utils_plot.R")
+source("utils/utils_survival.R")
 
 # Load data #
-gene_groups_CNaware <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/gene_groups.RDS")
-res_CNnaive <- read.csv("deconveilCaseStudies/results_tcga/BRCA/res_CNnaive.csv")
+gene_groups_CNaware <- readRDS("plots/main/Fig 5/rds/gene_groups.RDS")
+res_CNnaive <- read.csv("results_tcga/BRCA/res_CNnaive.csv")
 clinical_data <- readRDS("TCGA/BRCA/clinical_full.RDS")
 rna_tumor <- readRDS("TCGA/BRCA/rna_tumor.RDS")
 cnv_tumor <- readRDS("TCGA/BRCA/cnv_tumor.RDS")
@@ -61,10 +62,10 @@ sig_genes_dins <- run_cox_analysis(data_dins$rna, data_dins$clinical)
 sig_genes_dcomp <- run_cox_analysis(data_dcomp$rna, data_dcomp$clinical)
 sig_genes_naive <- run_cox_analysis(data_naive$rna, data_naive$clinical)
 
-saveRDS(sig_genes_ds, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dsg.RDS")
-saveRDS(sig_genes_dins, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dig.RDS")
-saveRDS(sig_genes_dcomp, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dcg.RDS")
-saveRDS(sig_genes_naive, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_CNnaive.RDS")
+saveRDS(sig_genes_ds, file = "plots/main/Fig 5/rds/cox_significant_dsg.RDS")
+saveRDS(sig_genes_dins, file = "plots/main/Fig 5/rds/cox_significant_dig.RDS")
+saveRDS(sig_genes_dcomp, file = "plots/main/Fig 5/rds/cox_significant_dcg.RDS")
+saveRDS(sig_genes_naive, file = "plots/main/Fig 5/rds/cox_significant_CNnaive.RDS")
 
 
 # The Hazard Ratio (HR) and confidence intervals (CI) give an indication of the prognostic impact of each gene. 
@@ -74,28 +75,28 @@ saveRDS(sig_genes_naive, file = "deconveilCaseStudies/plots/main/Fig 5/rds/cox_s
 
 ## Fit LASSO and calculate prognostic score ##
 
-sig_genes_ds <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dsg.RDS")
-sig_genes_dins <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dig.RDS")
-sig_genes_dcomp <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_dcg.RDS")
-sig_genes_naive <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/cox_significant_CNnaive.RDS")
+sig_genes_ds <- readRDS("plots/main/Fig 5/rds/cox_significant_dsg.RDS")
+sig_genes_dins <- readRDS("plots/main/Fig 5/rds/cox_significant_dig.RDS")
+sig_genes_dcomp <- readRDS("plots/main/Fig 5/rds/cox_significant_dcg.RDS")
+sig_genes_naive <- readRDS("plots/main/Fig 5/rds/cox_significant_CNnaive.RDS")
 
 lasso_dsg <- fit_lasso_and_score(data_ds$rna, data_ds$clinical, sig_genes_ds)
 lasso_dig <- fit_lasso_and_score(data_dins$rna, data_dins$clinical, sig_genes_dins)
 lasso_dcg <- fit_lasso_and_score(data_dcomp$rna, data_dcomp$clinical, sig_genes_dcomp)
 lasso_naive <- fit_lasso_and_score(data_naive$rna, data_naive$clinical, sig_genes_naive)
 
-saveRDS(lasso_dsg, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dsg.RDS")
-saveRDS(lasso_dig, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dig.RDS")
-saveRDS(lasso_dcg, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dcg.RDS")
-saveRDS(lasso_naive, file = "deconveilCaseStudies/plots/main/Fig 5/rds/lasso_CNnaive.RDS")
+saveRDS(lasso_dsg, file = "plots/main/Fig 5/rds/lasso_dsg.RDS")
+saveRDS(lasso_dig, file = "plots/main/Fig 5/rds/lasso_dig.RDS")
+saveRDS(lasso_dcg, file = "plots/main/Fig 5/rds/lasso_dcg.RDS")
+saveRDS(lasso_naive, file = "plots/main/Fig 5/rds/lasso_CNnaive.RDS")
 
 
 ## Forest plot ##
 
-lasso_naive <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/lasso_CNnaive.RDS")
-lasso_dsg <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dsg.RDS")
-lasso_dig <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dig.RDS")
-lasso_dcg <- readRDS("deconveilCaseStudies/plots/main/Fig 5/rds/lasso_dcg.RDS")
+lasso_naive <- readRDS("plots/main/Fig 5/rds/lasso_CNnaive.RDS")
+lasso_dsg <- readRDS("plots/main/Fig 5/rds/lasso_dsg.RDS")
+lasso_dig <- readRDS("plots/main/Fig 5/rds/lasso_dig.RDS")
+lasso_dcg <- readRDS("plots/main/Fig 5/rds/lasso_dcg.RDS")
 
 f1 <- forest_plot(lasso_dsg, title = "DSGs")
 f2 <- forest_plot(lasso_dig, title = "DIGs")
@@ -105,8 +106,7 @@ f4 <- forest_plot(lasso_naive, title = "DEGs (n = 5063)")
 joint_forest <- f1 | f2 | f3 | f4
 joint_forest
 
-ggsave("deconveilCaseStudies/plots/main/Fig 5/joint_forest.png", dpi = 500, width = 14.0, height = 5.0, plot = joint_forest)
-
+ggsave("plots/main/Fig 5/joint_forest.png", dpi = 500, width = 14.0, height = 5.0, plot = joint_forest)
 
 
 ### Perform prognostic model validation using external cohort METABRIC ###
@@ -168,9 +168,9 @@ cn_metabric <- cn_metabric %>%
 cn_metabric[cn_metabric == 0] <- 0.001
 cn_metabric <- cn_metabric / 2
 
-saveRDS(rna_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
-saveRDS(cn_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
-saveRDS(clinical_metabric, file = "deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
+saveRDS(rna_metabric, file = "TCGA/brca_metabric/rna_metabric.rds")
+saveRDS(cn_metabric, file = "TCGA/brca_metabric/cn_metabric.rds")
+saveRDS(clinical_metabric, file = "TCGA/brca_metabric/clinical_metabric.rds")
 
 
 # Subset METABRIC data for the same genes used in TCGA-BRCA
@@ -179,9 +179,9 @@ process_metabric <- function(rna_input, lasso_model, label = "DS") {
   message("Processing METABRIC for: ", label)
   
   # Load METABRIC RNA and CN data
-  rna_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/rna_metabric.rds")
-  cn_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/cn_metabric.rds")
-  clinical_metabric <- readRDS("deconveilCaseStudies/TCGA/brca_metabric/clinical_metabric.rds")
+  rna_metabric <- readRDS("TCGA/brca_metabric/rna_metabric.rds")
+  cn_metabric <- readRDS("TCGA/brca_metabric/cn_metabric.rds")
+  clinical_metabric <- readRDS("TCGA/brca_metabric/clinical_metabric.rds")
   
   # Filter for genes in input
   gene_filter <- intersect(rownames(rna_metabric), rownames(rna_input))
@@ -264,7 +264,7 @@ surv_plot_naive$plot <- surv_plot_naive$plot + theme(legend.position = "none")
 joint_survival <- surv_plot_dsg$plot | surv_plot_dig$plot | surv_plot_dcg$plot | surv_plot_naive$plot
 joint_survival
 
-ggsave("deconveilCaseStudies/plots/main/Fig 5/joint_survival.png", dpi = 500, width = 12.0, height = 4.0, plot = joint_survival)
+ggsave("plots/main/Fig 5/joint_survival.png", dpi = 500, width = 12.0, height = 4.0, plot = joint_survival)
 
 
 ## Calculate Concordance Index for both datasets ##

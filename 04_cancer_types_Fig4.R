@@ -1,9 +1,10 @@
 setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
 pkgs <- c("tidyverse", "ggvenn", "VennDiagram", "reactome.db", "fgsea", "org.Hs.eg.db", 
           "data.table", "clusterProfiler", "enrichplot", "ggpubr", "msigdbr", "ggVennDiagram")
+
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils/utils.R")
-source("deconveilCaseStudies/utils/utils_plot.R")
+source("utils/utils.R")
+source("utils/utils_plot.R")
 
 ### Compare DSGs across each cancer type, identify common genes and cancer-specific genes ###
 
@@ -12,8 +13,8 @@ source("deconveilCaseStudies/utils/utils_plot.R")
 tumor_types <- c("LUAD", "LUSC", "BRCA") 
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results_tcga/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results_tcga/{tumor}/res_CNaware.csv"
+  res_pydeseq = "results_tcga/{tumor}/res_CNnaive.csv",
+  res_deconveil = "results_tcga/{tumor}/res_CNaware.csv"
 )
 
 # Define thresholds
@@ -139,9 +140,9 @@ saveRDS(res_ora_GO_list, file = "deconveilCaseStudies/plots/main/Fig 4/rds/res_o
 
 # Select  tumor related significant pathways for each gene category
 
-common_dsg <- readRDS("deconveilCaseStudies/plots/main/Fig 4/rds/dsg_common.RDS")
-common_dig <- readRDS("deconveilCaseStudies/plots/main/Fig 4/rds/dig_common.RDS")
-common_dcg <- readRDS("deconveilCaseStudies/plots/main/Fig 4/rds/dcg_common.RDS")
+common_dsg <- readRDS("plots/main/Fig 4/rds/dsg_common.RDS")
+common_dig <- readRDS("plots/main/Fig 4/rds/dig_common.RDS")
+common_dcg <- readRDS("plots/main/Fig 4/rds/dcg_common.RDS")
 
 cancer_genes_oncokb <- read.delim("TCGA/cancerGeneList.tsv")
 
@@ -233,12 +234,12 @@ gene_type_colors <- c(
 barplot <- gene_barplot(distribution_summary, gene_type_colors)
 barplot  
 
-ggsave("deconveilCaseStudies/plots/main/barplot_onc_tsg.png", dpi = 500, width = 5.0, height = 4.0, plot = barplot)
+ggsave("plots/main/barplot_onc_tsg.png", dpi = 500, width = 5.0, height = 4.0, plot = barplot)
 
 
 ## Generate Enrichment plot ##
 
-ora_GO_path <- "deconveilCaseStudies/results_tcga/oraGO_cancer_types"
+ora_GO_path <- "results_tcga/oraGO_cancer_types"
 tumor_types <- c("luad", "lusc", "brca")
 categories <- c("Dosage-sensitive", "Dosage-insensitive", "Dosage-compensated")
 category_labels <- c("Dosage-sensitive" = "DSGs", "Dosage-insensitive" = "DIGs", "Dosage-compensated" = "DCGs")
@@ -368,29 +369,6 @@ GO_terms_private <- list(
 )
 
 
-#GO_terms_luad <- list(
-  #luad = list(
-    #'Dosage-sensitive' = c("DNA-templated DNA replication",
-                           #"chaperone-mediated protein folding",
-                           #"positive regulation of DNA metabolic process",
-                           #"fibroblast proliferation",
-                           #"extracellular matrix organization"),
-    
-    #'Dosage-insensitive' = c("B cell mediated immunity",
-                             #"immunoglobulin production",
-                             #"regulation of mitotic nuclear division",
-                             #"cell-cell adhesion via plasma-membrane adhesion molecules",
-                             #"cilium movement"),
-    
-    #'Dosage-compensated' = c("positive regulation of cell-cell adhesion",
-                             #"positive regulation of T cell activation",
-                             #"positive regulation of lymphocyte mediated immunity",
-                             #"negative regulation of kinase activity",
-                             #"response to hypoxia")
-  #)
-#)
-
-
 # Function to process data
 
 process_GO_data <- function(tumor, category, oraGO_pancancer, GO_terms) {
@@ -433,14 +411,14 @@ dotplot_data <- dotplot_data %>%
   )
 
 
-saveRDS(dotplot_data, file = "deconveilCaseStudies/plots/main/Fig 4/rds/dotplot_GO_common.RDS")
-saveRDS(dotplot_data, file = "deconveilCaseStudies/plots/supplementary/rds/dotplot_GO_shared.RDS")
+saveRDS(dotplot_data, file = "plots/main/Fig 4/rds/dotplot_GO_common.RDS")
+saveRDS(dotplot_data, file = "plots/supplementary/rds/dotplot_GO_shared.RDS")
 
 
 # Plot
 plot_GO <- enrichment_dotplot(dotplot_data)
 plot_GO  
 
-ggsave("deconveilCaseStudies/plots/main/GOdotplot_pancancer_shared.png", dpi = 500, width = 13.0, height = 5.0, plot = plot_GO)
-ggsave("deconveilCaseStudies/plots/supplementary/GOdotplot_pancancer_private.png", dpi = 500, width = 24.0, height = 5.0, plot = plot_GO)
-ggsave("deconveilCaseStudies/plots/main/GOdotplot_luad_v2.png", dpi = 500, width = 18.0, height = 4.5, plot = plot_GO)
+ggsave("plots/main/GOdotplot_pancancer_shared.png", dpi = 500, width = 13.0, height = 5.0, plot = plot_GO)
+ggsave("plots/supplementary/GOdotplot_pancancer_private.png", dpi = 500, width = 24.0, height = 5.0, plot = plot_GO)
+ggsave("plots/main/GOdotplot_luad_v2.png", dpi = 500, width = 18.0, height = 4.5, plot = plot_GO)

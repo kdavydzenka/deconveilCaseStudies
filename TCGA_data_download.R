@@ -1,7 +1,7 @@
 ### Download data from GDC portal ###
 
 rm(list=ls())
-setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/TCGA/")
+setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/deconveilCaseStudies/TCGA/")
 pkgs <- c("tidyverse", "TCGAbiolinks", "SummarizedExperiment", "sesameData", "sesame")
 sapply(pkgs, require, character.only = TRUE)
 

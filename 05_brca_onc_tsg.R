@@ -1,7 +1,8 @@
-setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/")
+setwd("/Users/katsiarynadavydzenka/Documents/PhD_AI/deconveilCaseStudies/")
 pkgs <- c("tidyverse")
+
 sapply(pkgs, require, character.only = TRUE)
-source("deconveilCaseStudies/utils/utils.R")
+source("utils/utils.R")
 
 ### BRCA - Oncogenes & TSGs ###
 
@@ -10,8 +11,8 @@ source("deconveilCaseStudies/utils/utils.R")
 tumor_types <- c("BRCA")
 
 base_paths <- list(
-  res_pydeseq = "deconveilCaseStudies/results_tcga/{tumor}/res_CNnaive.csv",
-  res_deconveil = "deconveilCaseStudies/results_tcga/{tumor}/res_CNaware.csv"
+  res_pydeseq = "results_tcga/{tumor}/res_CNnaive.csv",
+  res_deconveil = "results_tcga/{tumor}/res_CNaware.csv"
 )
 
 lfc_cut <- 1.0
@@ -147,5 +148,5 @@ barplot <- ggplot(distribution_summary, aes(x = gene_category, y = gene_count, f
         axis.title = element_text(size = 14))
 barplot
 
-ggsave("deconveilCaseStudies/plots/main/barplot_onc_tsg_brca.png", dpi = 400, width = 5.5, height = 4.5, plot = barplot)
+ggsave("plots/main/barplot_onc_tsg_brca.png", dpi = 400, width = 5.5, height = 4.5, plot = barplot)
 

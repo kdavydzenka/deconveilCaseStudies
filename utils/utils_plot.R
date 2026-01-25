@@ -79,6 +79,61 @@ plot_metrics_robustness <- function(df,
 }
 
 
+plot_performance_metrics <- function(
+    df,
+    colors = NULL,          # named vector
+    facet_rows = NULL,      # string or character vector, e.g. "comparison" or c("comparison","CN signal")
+    facet_cols = "metric"  # string or character vector
+) {
+  # helper: convert c("a","b") into vars(a, b)
+  vars_from_chr <- function(x) {
+    if (is.null(x) || length(x) == 0) return(NULL)
+    do.call(vars, lapply(x, as.name))
+  }
+  
+  p <- ggplot(
+    df,
+    aes(
+      x = factor(sample_size),
+      y = value,
+      color = cn_signal
+    )
+  ) +
+    geom_boxplot(
+      fill = NA,
+      linewidth = 0.3,
+      outlier.shape = NA,
+      position = position_dodge(width = 0.75)
+    ) +
+    facet_grid(
+      rows = vars_from_chr(facet_rows),
+      cols = vars_from_chr(facet_cols)
+    ) +
+    scale_y_continuous(
+      limits = c(0, 1),
+      breaks = seq(0, 1, 0.2)
+    ) +
+    labs(
+      title = "",
+      x = "# Samples per condition",
+      y = "Performance metric",
+      color = "CN signal"
+    ) +
+    theme_bw(base_size = 10) +
+    theme(
+      legend.position = "bottom",
+      strip.background = element_rect(fill = "grey90"),
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+  if (!is.null(colors)) {
+    p <- p + scale_color_manual(values = colors)
+  }
+  
+  p
+}
+
+
 forest_plot <- function(sel_genes_data, title = NULL) {
   plot_data <- sel_genes_data %>%
     mutate(
